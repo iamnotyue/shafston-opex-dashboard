@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shafston OPEX 2026 Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0B1120;color:#E2E8F0;font-family:'Inter',system-ui,sans-serif;min-height:100vh}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#1E293B}
+::-webkit-scrollbar-thumb{background:#475569;border-radius:3px}
+</style>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/prop-types@15/prop-types.min.js" crossorigin></script>
+<script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js" crossorigin></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+window.onerror=function(msg,src,line){document.getElementById('root').innerHTML='<p style="color:#EF4444;padding:40px;font-size:18px;">Dashboard Error: '+msg+' (line '+line+')</p>';};
+
+var h = React.createElement;
+var useState = React.useState;
+var useMemo = React.useMemo;
+var RC = Recharts;
+var BarChart=RC.BarChart, Bar=RC.Bar, LineChart=RC.LineChart, Line=RC.Line,
+    AreaChart=RC.AreaChart, Area=RC.Area, PieChart=RC.PieChart, Pie=RC.Pie, Cell=RC.Cell,
+    ComposedChart=RC.ComposedChart, XAxis=RC.XAxis, YAxis=RC.YAxis,
+    CartesianGrid=RC.CartesianGrid, Tooltip=RC.Tooltip, Legend=RC.Legend,
+    ResponsiveContainer=RC.ResponsiveContainer, ReferenceLine=RC.ReferenceLine,
+    LabelList=RC.LabelList;
+
+/* ========== DATA CONSTANTS ========== */
+var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var CURRENT_MONTH_IDX = 2; /* Mar = index 2, 0-based */
+var MONTHS_ELAPSED = 2; /* Jan+Feb complete */
+var DATA_DATE = 'Mar 6, 2026';
+var MONTHLY_BUDGET = 24131.61;
+var ANNUAL_BUDGET = 310616.08;
+
+/* Group colors */
+var GC = {it:'#3B82F6',ins:'#8B5CF6',mem:'#F59E0B',prt:'#10B981',fin:'#EF4444',ops:'#06B6D4',chn:'#F97316',tax:'#EC4899'};
+
+/* 8 OPEX Groups — budget inc-GST, actuals ex-GST (pro-rated from 65-day P&L) */
+var GROUPS = [
+  {key:'it',name:'IT Expenses',color:GC.it,budgetMo:5094.03,budgetYr:63206.08,gstPct:10,
+   jan:5386,feb:4865,note:'Includes SIA $805 annual (Mar)'},
+  {key:'ins',name:'Insurance',color:GC.ins,budgetMo:1782.26,budgetYr:39850.12,gstPct:0,
+   jan:1593,feb:1438,note:'WorkCover $18,463 due Jul'},
+  {key:'mem',name:'Membership',color:GC.mem,budgetMo:935.00,budgetYr:11220.00,gstPct:0,
+   jan:0,feb:0,note:'NEAS not recorded in P&L — accrual gap'},
+  {key:'prt',name:'Printing & Materials',color:GC.prt,budgetMo:850.00,budgetYr:10200.00,gstPct:10,
+   jan:813,feb:735,note:''},
+  {key:'fin',name:'Finance & Accounting',color:GC.fin,budgetMo:550.00,budgetYr:6600.00,gstPct:0,
+   jan:1019,feb:920,note:'Bank fees GST-free'},
+  {key:'ops',name:'Daily Operations',color:GC.ops,budgetMo:1753.32,budgetYr:21539.88,gstPct:5,
+   jan:2579,feb:2329,note:'Filing fees + cleaning + water'},
+  {key:'chn',name:'China Office',color:GC.chn,budgetMo:9167.00,budgetYr:110000.00,gstPct:0,
+   jan:4372,feb:3949,note:'$110K/year budget'},
+  {key:'tax',name:'Tax (Payroll)',color:GC.tax,budgetMo:4000.00,budgetYr:48000.00,gstPct:0,
+   jan:9953,feb:8987,note:'OVER BUDGET — Study Tour seasonal'}
+];
+
+/* Monthly budget with annual item spikes */
+var MONTHLY_BUDGETS = {
+  Jan:24132,Feb:24132,Mar:24937,Apr:24132,May:28132,Jun:24132,
+  Jul:42595,Aug:24132,Sep:24132,Oct:24132,Nov:24132,Dec:24132
+};
+
+/* 31 Suppliers — [groupKey, supplier, item, account, freq, method, budgetMo, gst, debitDay] */
+var SUPPLIERS = [
+  ['it','aXcelerate','Student Management System','5-4223','Monthly','Auto DD',1890.00,true,12],
+  ['it','Exetel Pty Ltd','Internet - BNE','5-4222','Monthly','Auto DD',900.00,true,8],
+  ['it','Exetel Pty Ltd','Internet - GC','5-4222','Monthly','Auto DD',150.00,true,8],
+  ['it','Superloop Limited','Internet - Gold Coast','5-4222','Monthly','Auto DD',105.00,true,28],
+  ['it','Amaysim/Coles/Lebara','Staff Mobile Plans (7)','5-4222','Annual','Prepaid',0,true,0],
+  ['it','Todd Austin','IT Support (Contractor)','5-4240','Monthly','Invoice',300.00,true,0],
+  ['it','Xero Australia','Accounting Software (x3)','5-4220','Monthly','Auto DD',367.65,true,12],
+  ['it','Microsoft','Office 365','5-4220','Monthly','Auto DD',182.88,true,12],
+  ['it','Adobe','Creative Cloud','5-4220','Monthly','Auto DD',192.96,true,15],
+  ['it','OpenAI / Anthropic','AI Subscription','5-4220','Monthly','Auto DD',450.00,true,5],
+  ['it','Google','Workspace Storage','5-4220','Monthly','Auto DD',2.99,true,20],
+  ['it','MessageMedia','SMS Service','5-4220','Monthly','Auto DD',46.66,true,14],
+  ['it','Read AI','AI Meeting Notes','5-4220','Annual','Auto DD',0,true,19],
+  ['it','Servers Australia','Website Hosting','5-4220','Monthly','Auto DD',505.89,true,19],
+  ['it','Sign In App','Visitor Sign-In (SIA)','5-4220','Annual','Auto DD',0,true,0],
+  ['ins','ClearMatch Originate','Public Liability','5-8100','Monthly','Auto DD',1269.51,false,9],
+  ['ins','ClearMatch Originate','Professional Indemnity','5-8100','Monthly','Auto DD',512.75,false,15],
+  ['ins','WorkCover Queensland','WorkCover QLD','5-8100','Annual','Invoice',0,false,0],
+  ['mem','NEAS Australia','NEAS Membership','5-4370','Monthly','Invoice',935.00,false,13],
+  ['prt','Abacus Calculators','Printer Rental - BNE','5-4221','Monthly','Auto DD',850.00,true,19],
+  ['fin','Westpac','Account Fees (x5 accts)','5-9200','Monthly','Auto (bank)',80.00,false,2],
+  ['fin','CBA','Cafe Account Fees','5-9200','Monthly','Auto (bank)',5.00,false,2],
+  ['fin','Westpac','Merchant Fees','5-9201','Monthly','Auto (bank)',420.00,false,2],
+  ['fin','CBA','Merchant Fees','5-9201','Monthly','Auto (bank)',45.00,false,2],
+  ['ops','Chang Li','Cleaning - 46 Thorn St','5-5100','Monthly','Invoice',770.00,true,0],
+  ['ops','Klean King Pty Ltd','Office Supplies','5-5100','Annual','Invoice',0,true,0],
+  ['ops','AK Health Care','Water Dispenser - BNE (x2)','5-5100','Monthly','Auto DD',110.00,true,21],
+  ['ops','AK Health Care','Water Dispenser - GC','5-5100','Monthly','Auto DD',39.99,true,20],
+  ['ops','Various','Filing Fees (CRICOS/ASQA)','5-3155','Variable','Invoice',833.33,false,0],
+  ['chn','China Office','China Office Expense','5-1000','Monthly','Various',9167.00,false,0],
+  ['tax','QLD Revenue Office','Payroll Tax','5-7200','Monthly','Various',4000.00,false,0]
+];
+
+/* Tasks */
+var TASKS = [
+  {id:1,task:'Confirm NEAS Jan Instalment 3 paid',amount:935,owner:'Yilia',status:'pending',priority:'high',category:'Payment'},
+  {id:2,task:'Pay Chang Li INV07 - Accommodation',amount:560,owner:'Yilia',status:'unpaid',priority:'high',category:'Payment'},
+  {id:3,task:'Xero correction: Burgundy entries to NAB Repayment',amount:13800,owner:'Yilia',status:'action',priority:'high',category:'Correction'},
+  {id:4,task:'Officeworks x2 miscoded to 5-4220 — recode to Study Tour',amount:87.28,owner:'Morry',status:'action',priority:'medium',category:'Correction'},
+  {id:5,task:'Investigate Microsoft extra charge 22 Feb — new licence or duplicate?',amount:153.64,owner:'Peter/Morry',status:'investigating',priority:'medium',category:'Investigation'},
+  {id:6,task:'CRICOS Registration Renewal — apply by 31 May 2026',amount:4000,owner:'Yilia/Peter',status:'upcoming',priority:'critical',category:'Compliance'},
+  {id:7,task:'Review Payroll Tax budget — actual $20,860 vs $8,667 budget (2 months)',amount:0,owner:'Yilia',status:'action',priority:'high',category:'Budget Review'}
+];
+
+/* Key Dates */
+var KEY_DATES = [
+  {date:'2026-05-31',label:'CRICOS Renewal Application Deadline',severity:'red',detail:'Registration expires 31 Aug 2026, must apply 3 months prior'},
+  {date:'2026-04-20',label:'ASIC Annual Review (Sydney entity)',severity:'amber',detail:'Nancy Liu handling, Shafston Sydney Pty Ltd'},
+  {date:'2026-02-01',label:'ASIC Annual Review (International)',severity:'green',detail:'Completed — $10 fee processed Feb 2026'},
+  {date:'2026-07-01',label:'WorkCover QLD Annual Payment',severity:'amber',detail:'Estimated $18,463 (20% reduction from FY25)'},
+  {date:'2026-03-01',label:'Sign In App (SIA) Annual Fee',severity:'green',detail:'$805 inc GST, auto debit March 2026'}
+];
+
+/* Annual items for calendar view */
+var ANNUAL_ITEMS = [
+  {month:'Mar',item:'Sign In App (SIA)',amount:805,group:'IT'},
+  {month:'May',item:'CRICOS Renewal (est.)',amount:4000,group:'Compliance'},
+  {month:'Jul',item:'WorkCover QLD',amount:18463,group:'Insurance'},
+  {month:'Various',item:'Staff Mobiles (prepaid)',amount:1180,group:'IT'},
+  {month:'Annual',item:'Klean King Office Supplies',amount:500,group:'Daily Ops'}
+];
+
+/* ========== UTILITIES ========== */
+function fmt(n){if(n==null)return'-';var abs=Math.abs(n);var s=abs>=1000000?'$'+(abs/1000000).toFixed(1)+'M':abs>=1000?'$'+Math.round(abs/1000).toLocaleString()+'K':'$'+Math.round(abs).toLocaleString();return n<0?'-'+s:s;}
+function fmtFull(n){if(n==null)return'-';return(n<0?'-$':'$')+Math.abs(Math.round(n)).toLocaleString();}
+function fmtDec(n){if(n==null)return'-';return(n<0?'-$':'$')+Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
+function pct(n){return n==null?'-':n.toFixed(1)+'%';}
+function fmtPct(n){return n==null?'-':(n>=0?'+':'')+n.toFixed(1)+'%';}
+
+/* ========== COMPUTED METRICS ========== */
+var ytdActual = GROUPS.reduce(function(s,g){return s+g.jan+g.feb;},0);
+var ytdBudget = MONTHLY_BUDGET * MONTHS_ELAPSED;
+var ytdVariance = ytdActual - ytdBudget;
+var ytdVariancePct = ytdVariance / ytdBudget * 100;
+var annualProjected = (ytdActual / MONTHS_ELAPSED) * 12;
+var budgetUtilization = ytdActual / ytdBudget * 100;
+
+/* Per-group YTD */
+var groupYTD = GROUPS.map(function(g){
+  var actual = g.jan + g.feb;
+  var budget = g.budgetMo * MONTHS_ELAPSED;
+  var variance = actual - budget;
+  var varPct = budget > 0 ? (variance / budget * 100) : 0;
+  return {key:g.key,name:g.name,color:g.color,actual:actual,budget:budget,variance:variance,varPct:varPct,
+          budgetMo:g.budgetMo,jan:g.jan,feb:g.feb,gstPct:g.gstPct,note:g.note};
+});
+
+/* Chart data: monthly actual vs budget for each month */
+var monthlyChartData = MONTHS.map(function(m){
+  var budget = MONTHLY_BUDGETS[m] || MONTHLY_BUDGET;
+  var actual = null;
+  if(m==='Jan') actual = GROUPS.reduce(function(s,g){return s+g.jan;},0);
+  if(m==='Feb') actual = GROUPS.reduce(function(s,g){return s+g.feb;},0);
+  return {month:m, budget:budget, actual:actual};
+});
+
+/* Group chart data for horizontal bars */
+var groupChartData = groupYTD.map(function(g){
+  return {name:g.name.length>15?g.name.substring(0,15)+'...':g.name,fullName:g.name,actual:g.actual,budget:g.budget,color:g.color};
+});
+
+/* Biggest variance items */
+var varianceRanked = groupYTD.slice().sort(function(a,b){return Math.abs(b.variance)-Math.abs(a.variance);});
+
+/* Budget pie data */
+var budgetPieData = GROUPS.map(function(g){return{name:g.name,value:g.budgetMo,color:g.color};});
+
+/* ========== STYLES ========== */
+var S = {
+  header:{background:'linear-gradient(135deg,#0F172A 0%,#1E293B 100%)',padding:'16px 32px',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid #334155',position:'sticky',top:0,zIndex:100},
+  headerTitle:{fontSize:20,fontWeight:700,color:'#F8FAFC',letterSpacing:'-0.02em'},
+  badge:{padding:'4px 12px',borderRadius:20,fontSize:11,fontWeight:700,letterSpacing:'0.05em'},
+  nav:{display:'flex',gap:4,padding:'12px 32px',background:'#0F172A',borderBottom:'1px solid #1E293B',flexWrap:'wrap'},
+  navBtn:{padding:'8px 16px',borderRadius:8,border:'1px solid transparent',cursor:'pointer',fontSize:13,fontWeight:500,background:'transparent',color:'#94A3B8',transition:'all 0.2s'},
+  navBtnActive:{padding:'8px 16px',borderRadius:8,border:'1px solid #3B82F6',cursor:'pointer',fontSize:13,fontWeight:600,background:'rgba(59,130,246,0.15)',color:'#60A5FA'},
+  content:{padding:'24px 32px',maxWidth:1400,margin:'0 auto'},
+  kpiRow:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:16,marginBottom:24},
+  kpi:{background:'linear-gradient(135deg,#1E293B,#0F172A)',borderRadius:12,padding:'20px',border:'1px solid #334155',position:'relative',overflow:'hidden'},
+  kpiLabel:{fontSize:12,color:'#94A3B8',fontWeight:500,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:8},
+  kpiValue:{fontSize:28,fontWeight:800,color:'#F8FAFC',fontFeatureSettings:'"tnum"',letterSpacing:'-0.02em'},
+  kpiSub:{fontSize:12,color:'#64748B',marginTop:6},
+  kpiTrend:{fontSize:12,fontWeight:600,marginTop:6},
+  section:{background:'#1E293B',borderRadius:12,padding:24,border:'1px solid #334155',marginBottom:24},
+  sectionTitle:{fontSize:16,fontWeight:700,color:'#F8FAFC',marginBottom:16},
+  chartWrap:{width:'100%',height:320},
+  grid2:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,marginBottom:24},
+  grid3:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:24,marginBottom:24},
+  table:{width:'100%',borderCollapse:'collapse',fontSize:13},
+  th:{padding:'10px 12px',textAlign:'left',borderBottom:'2px solid #334155',color:'#94A3B8',fontWeight:600,fontSize:11,textTransform:'uppercase',letterSpacing:'0.05em'},
+  thR:{padding:'10px 12px',textAlign:'right',borderBottom:'2px solid #334155',color:'#94A3B8',fontWeight:600,fontSize:11,textTransform:'uppercase',letterSpacing:'0.05em'},
+  td:{padding:'10px 12px',borderBottom:'1px solid #1E293B',color:'#E2E8F0',fontFeatureSettings:'"tnum"'},
+  tdR:{padding:'10px 12px',borderBottom:'1px solid #1E293B',color:'#E2E8F0',fontFeatureSettings:'"tnum"',textAlign:'right'},
+  miniCard:{background:'#0F172A',borderRadius:8,padding:'12px 16px',border:'1px solid #334155'},
+  tag:{display:'inline-block',padding:'2px 8px',borderRadius:4,fontSize:10,fontWeight:700,letterSpacing:'0.05em'},
+  progressBar:{height:6,background:'#1E293B',borderRadius:3,overflow:'hidden',marginTop:8},
+  progressFill:{height:'100%',borderRadius:3,transition:'width 0.5s ease'},
+  footer:{textAlign:'center',padding:'16px',color:'#475569',fontSize:11}
+};
+
+/* ========== SHARED COMPONENTS ========== */
+function KpiCard(props){
+  var glowColor = props.alert==='red'?'rgba(239,68,68,0.15)':props.alert==='amber'?'rgba(245,158,11,0.15)':'transparent';
+  var borderColor = props.alert==='red'?'#EF4444':props.alert==='amber'?'#F59E0B':'#334155';
+  var trendColor = props.trendUp===true?'#10B981':props.trendUp===false?'#EF4444':'#94A3B8';
+  return h('div',{style:Object.assign({},S.kpi,{boxShadow:'0 0 20px '+glowColor,borderColor:borderColor})},
+    h('div',{style:S.kpiLabel},props.label),
+    h('div',{style:Object.assign({},S.kpiValue,props.valueColor?{color:props.valueColor}:{})},props.value),
+    props.sub?h('div',{style:S.kpiSub},props.sub):null,
+    props.trend?h('div',{style:Object.assign({},S.kpiTrend,{color:trendColor})},props.trend):null
+  );
+}
+
+function StatusBadge(props){
+  var colors = {pending:'#F59E0B',unpaid:'#EF4444',action:'#3B82F6',investigating:'#8B5CF6',upcoming:'#06B6D4',complete:'#10B981',critical:'#EF4444'};
+  var c = colors[props.status]||'#94A3B8';
+  return h('span',{style:Object.assign({},S.tag,{background:c+'22',color:c,border:'1px solid '+c})},props.status.toUpperCase());
+}
+
+function SeverityDot(props){
+  var colors = {red:'#EF4444',amber:'#F59E0B',green:'#10B981'};
+  var c = colors[props.severity]||'#94A3B8';
+  return h('span',{style:{display:'inline-block',width:10,height:10,borderRadius:'50%',background:c,boxShadow:'0 0 6px '+c,marginRight:8}});
+}
+
+/* ========== TAB 1: BUDGET OVERVIEW ========== */
+function BudgetTab(){
+  var overBudget = ytdVariance > 0;
+  var statusColor = overBudget ? '#EF4444' : '#10B981';
+  var statusLabel = overBudget ? 'OVER BUDGET' : 'UNDER BUDGET';
+
+  return h('div',null,
+    /* KPI Row */
+    h('div',{style:S.kpiRow},
+      h(KpiCard,{label:'Monthly Budget',value:fmtDec(MONTHLY_BUDGET),sub:'Inc GST per month'}),
+      h(KpiCard,{label:'YTD Actual (ex-GST)',value:fmtFull(ytdActual),sub:MONTHS_ELAPSED+' months (Jan-Feb)',trend:fmtPct(ytdVariancePct)+' vs budget',trendUp:!overBudget}),
+      h(KpiCard,{label:'YTD Variance',value:fmtFull(Math.abs(ytdVariance)),valueColor:statusColor,sub:statusLabel,alert:overBudget?'red':null}),
+      h(KpiCard,{label:'Annual Budget',value:fmtFull(ANNUAL_BUDGET),sub:'$310,616 for 2026',trend:'Projected: '+fmtFull(annualProjected),trendUp:annualProjected<=ANNUAL_BUDGET}),
+      h(KpiCard,{label:'Budget Utilization',value:pct(budgetUtilization),sub:'Target: 100%',alert:budgetUtilization>120?'red':budgetUtilization>110?'amber':null})
+    ),
+
+    /* Charts Row */
+    h('div',{style:S.grid2},
+      /* Monthly Budget vs Actual */
+      h('div',{style:S.section},
+        h('div',{style:S.sectionTitle},'Monthly Budget vs Actual'),
+        h('div',{style:S.chartWrap},
+          h(ResponsiveContainer,{width:'100%',height:'100%'},
+            h(ComposedChart,{data:monthlyChartData,margin:{top:20,right:20,bottom:5,left:10}},
+              h(CartesianGrid,{strokeDasharray:'3 3',stroke:'#334155'}),
+              h(XAxis,{dataKey:'month',stroke:'#64748B',fontSize:12}),
+              h(YAxis,{stroke:'#64748B',fontSize:11,tickFormatter:function(v){return '$'+Math.round(v/1000)+'K';}}),
+              h(Tooltip,{formatter:function(v){return v!=null?fmtFull(v):'-';},contentStyle:{background:'#1E293B',border:'1px solid #475569',borderRadius:8,color:'#E2E8F0'}}),
+              h(Legend,null),
+              h(Bar,{dataKey:'budget',fill:'#334155',radius:[4,4,0,0],name:'Budget (inc GST)'}),
+              h(Bar,{dataKey:'actual',fill:'#3B82F6',radius:[4,4,0,0],name:'Actual (ex GST)'}),
+              h(ReferenceLine,{y:MONTHLY_BUDGET,stroke:'#F59E0B',strokeDasharray:'5 5',label:{value:'Base $'+Math.round(MONTHLY_BUDGET/1000)+'K',fill:'#F59E0B',fontSize:11,position:'right'}})
+            )
+          )
+        )
+      ),
+
+      /* Budget Allocation Pie */
+      h('div',{style:S.section},
+        h('div',{style:S.sectionTitle},'Budget Allocation by Group'),
+        h('div',{style:S.chartWrap},
+          h(ResponsiveContainer,{width:'100%',height:'100%'},
+            h(PieChart,null,
+              h(Pie,{data:budgetPieData,cx:'50%',cy:'50%',innerRadius:60,outerRadius:120,dataKey:'value',label:function(entry){return entry.name.split(' ')[0]+' '+Math.round(entry.value/MONTHLY_BUDGET*100)+'%';}},
+                budgetPieData.map(function(d,i){return h(Cell,{key:i,fill:d.color});})
+              ),
+              h(Tooltip,{formatter:function(v){return fmtDec(v)+'/mo';},contentStyle:{background:'#1E293B',border:'1px solid #475569',borderRadius:8,color:'#E2E8F0'}})
+            )
+          )
+        )
+      )
+    ),
+
+    /* Group Summary Table */
+    h('div',{style:S.section},
+      h('div',{style:S.sectionTitle},'Group Budget Summary — YTD (Jan-Feb 2026)'),
+      h('div',{style:{overflowX:'auto'}},
+        h('table',{style:S.table},
+          h('thead',null,
+            h('tr',null,
+              h('th',{style:S.th},'Group'),
+              h('th',{style:S.thR},'Budget/mo'),
+              h('th',{style:S.thR},'Jan (ex-GST)'),
+              h('th',{style:S.thR},'Feb (ex-GST)'),
+              h('th',{style:S.thR},'YTD Actual'),
+              h('th',{style:S.thR},'YTD Budget'),
+              h('th',{style:S.thR},'Variance'),
+              h('th',{style:S.thR},'%'),
+              h('th',{style:S.th},'Note')
+            )
+          ),
+          h('tbody',null,
+            groupYTD.map(function(g,i){
+              var vc = g.variance > 0 ? '#EF4444' : '#10B981';
+              return h('tr',{key:i},
+                h('td',{style:Object.assign({},S.td,{fontWeight:600})},
+                  h('span',{style:{display:'inline-block',width:8,height:8,borderRadius:'50%',background:g.color,marginRight:8}}),
+                  g.name
+                ),
+                h('td',{style:S.tdR},fmtDec(g.budgetMo)),
+                h('td',{style:S.tdR},fmtFull(g.jan)),
+                h('td',{style:S.tdR},fmtFull(g.feb)),
+                h('td',{style:Object.assign({},S.tdR,{fontWeight:600})},fmtFull(g.actual)),
+                h('td',{style:S.tdR},fmtFull(g.budget)),
+                h('td',{style:Object.assign({},S.tdR,{color:vc,fontWeight:600})},
+                  (g.variance>0?'+':'')+fmtFull(g.variance)),
+                h('td',{style:Object.assign({},S.tdR,{color:vc})},fmtPct(g.varPct)),
+                h('td',{style:Object.assign({},S.td,{fontSize:11,color:'#94A3B8',maxWidth:200})},g.note)
+              );
+            }),
+            /* Grand Total Row */
+            h('tr',{style:{fontWeight:700,borderTop:'2px solid #475569',background:'rgba(59,130,246,0.05)'}},
+              h('td',{style:Object.assign({},S.td,{fontWeight:700})},'TOTAL'),
+              h('td',{style:Object.assign({},S.tdR,{fontWeight:700})},fmtDec(MONTHLY_BUDGET)),
+              h('td',{style:Object.assign({},S.tdR,{fontWeight:700})},fmtFull(GROUPS.reduce(function(s,g){return s+g.jan;},0))),
+              h('td',{style:Object.assign({},S.tdR,{fontWeight:700})},fmtFull(GROUPS.reduce(function(s,g){return s+g.feb;},0))),
+              h('td',{style:Object.assign({},S.tdR,{fontWeight:700})},fmtFull(ytdActual)),
+              h('td',{style:Object.assign({},S.tdR,{fontWeight:700})},fmtFull(ytdBudget)),
+              h('td',{style:Object.assign({},S.tdR,{fontWeight:700,color:ytdVariance>0?'#EF4444':'#10B981'})},(ytdVariance>0?'+':'')+fmtFull(ytdVariance)),
+              h('td',{style:Object.assign({},S.tdR,{fontWeight:700,color:ytdVariance>0?'#EF4444':'#10B981'})},fmtPct(ytdVariancePct)),
+              h('td',{style:S.td},'')
+            )
+          )
+        )
+      )
+    ),
+
+    /* Variance Alerts */
+    h('div',{style:S.section},
+      h('div',{style:S.sectionTitle},'Variance Alerts'),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:12}},
+        varianceRanked.filter(function(g){return Math.abs(g.varPct)>10;}).map(function(g,i){
+          var over = g.variance > 0;
+          var bgColor = over ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)';
+          var borderColor = over ? '#EF4444' : '#10B981';
+          return h('div',{key:i,style:Object.assign({},S.miniCard,{background:bgColor,borderColor:borderColor})},
+            h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}},
+              h('span',{style:{fontWeight:600,color:'#F8FAFC'}},g.name),
+              h('span',{style:Object.assign({},S.tag,{background:borderColor+'22',color:borderColor})},over?'OVER':'UNDER')
+            ),
+            h('div',{style:{fontSize:24,fontWeight:800,color:borderColor}},(over?'+':'')+fmtFull(g.variance)),
+            h('div',{style:{fontSize:12,color:'#94A3B8',marginTop:4}},fmtPct(g.varPct)+' | Budget: '+fmtFull(g.budget)+' | Actual: '+fmtFull(g.actual)),
+            g.note?h('div',{style:{fontSize:11,color:'#64748B',marginTop:6,fontStyle:'italic'}},g.note):null
+          );
+        })
+      )
+    )
+  );
+}
+
+/* ========== TAB 2: CURRENT MONTH ========== */
+function CurrentMonthTab(){
+  var currentMonth = MONTHS[CURRENT_MONTH_IDX];
+  var today = new Date();
+  var daysInMonth = 31; /* March */
+  var dayElapsed = Math.min(today.getDate(), 6); /* Data as of Mar 6 */
+  var monthBudget = MONTHLY_BUDGETS[currentMonth] || MONTHLY_BUDGET;
+
+  /* Suppliers due this month with debit day */
+  var monthSuppliers = SUPPLIERS.filter(function(s){return s[4]==='Monthly'||s[7]===currentMonth;}).map(function(s){
+    var day = s[8];
+    var status = day > 0 && day <= dayElapsed ? 'processed' : day > 0 ? 'upcoming' : 'variable';
+    return {group:s[0],supplier:s[1],item:s[2],account:s[3],amount:s[6],gst:s[7],day:day,method:s[5],status:status};
+  }).sort(function(a,b){return (a.day||99)-(b.day||99);});
+
+  /* Add SIA annual for March */
+  var marchItems = monthSuppliers.slice();
+  marchItems.push({group:'it',supplier:'Sign In App',item:'Visitor Sign-In (SIA) — ANNUAL',account:'5-4220',amount:805,gst:true,day:0,method:'Auto DD',status:'upcoming'});
+
+  var totalDue = marchItems.reduce(function(s,item){return s+item.amount;},0) + 805;
+
+  return h('div',null,
+    /* KPI Row */
+    h('div',{style:S.kpiRow},
+      h(KpiCard,{label:'Current Month',value:currentMonth+' 2026',sub:'Day '+dayElapsed+' of '+daysInMonth}),
+      h(KpiCard,{label:'Month Budget',value:fmtFull(monthBudget),sub:monthBudget>MONTHLY_BUDGET?'Includes annual items':'Base monthly budget'}),
+      h(KpiCard,{label:'Expected Payments',value:marchItems.length+' items',sub:fmtFull(totalDue)+' total due'}),
+      h(KpiCard,{label:'Special Items',value:'SIA Annual',sub:'$805 inc GST — Visitor Sign-In',alert:'amber'})
+    ),
+
+    /* Payment Schedule */
+    h('div',{style:S.section},
+      h('div',{style:S.sectionTitle},currentMonth+' 2026 Payment Schedule'),
+      h('div',{style:{overflowX:'auto'}},
+        h('table',{style:S.table},
+          h('thead',null,
+            h('tr',null,
+              h('th',{style:S.th},'Day'),
+              h('th',{style:S.th},'Supplier'),
+              h('th',{style:S.th},'Item'),
+              h('th',{style:S.th},'Account'),
+              h('th',{style:S.thR},'Amount'),
+              h('th',{style:S.th},'Method'),
+              h('th',{style:S.th},'Status')
+            )
+          ),
+          h('tbody',null,
+            marchItems.map(function(item,i){
+              var statusColors = {processed:'#10B981',upcoming:'#F59E0B',variable:'#94A3B8'};
+              return h('tr',{key:i},
+                h('td',{style:S.td},item.day>0?'~'+item.day:'Varies'),
+                h('td',{style:Object.assign({},S.td,{fontWeight:500})},item.supplier),
+                h('td',{style:S.td},item.item),
+                h('td',{style:Object.assign({},S.td,{fontFamily:'monospace',fontSize:12})},item.account),
+                h('td',{style:S.tdR},fmtDec(item.amount)),
+                h('td',{style:S.td},item.method),
+                h('td',{style:S.td},
+                  h('span',{style:Object.assign({},S.tag,{background:(statusColors[item.status]||'#94A3B8')+'22',color:statusColors[item.status]||'#94A3B8'})},item.status.toUpperCase())
+                )
+              );
+            })
+          )
+        )
+      )
+    ),
+
+    /* Annual Items Calendar */
+    h('div',{style:S.section},
+      h('div',{style:S.sectionTitle},'Annual Payment Calendar'),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12}},
+        ANNUAL_ITEMS.map(function(item,i){
+          var isThisMonth = item.month === currentMonth;
+          var isPast = MONTHS.indexOf(item.month) < CURRENT_MONTH_IDX;
+          var bgColor = isThisMonth ? 'rgba(59,130,246,0.15)' : isPast ? 'rgba(16,185,129,0.08)' : 'rgba(71,85,105,0.15)';
+          var borderColor = isThisMonth ? '#3B82F6' : isPast ? '#10B981' : '#475569';
+          return h('div',{key:i,style:Object.assign({},S.miniCard,{background:bgColor,borderColor:borderColor})},
+            h('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:6}},
+              h('span',{style:Object.assign({},S.tag,{background:borderColor+'22',color:borderColor})},item.month),
+              h('span',{style:{fontSize:18,fontWeight:700,color:'#F8FAFC'}},fmtFull(item.amount))
+            ),
+            h('div',{style:{fontSize:13,fontWeight:500,color:'#E2E8F0'}},item.item),
+            h('div',{style:{fontSize:11,color:'#94A3B8',marginTop:4}},item.group)
+          );
+        })
+      )
+    ),
+
+    /* Group Breakdown for Current Month */
+    h('div',{style:S.section},
+      h('div',{style:S.sectionTitle},'Supplier Detail by Group'),
+      GROUPS.map(function(group){
+        var groupSuppliers = SUPPLIERS.filter(function(s){return s[0]===group.key;});
+        var groupMonthlyTotal = groupSuppliers.reduce(function(s,sup){return s+sup[6];},0);
+        return h('div',{key:group.key,style:{marginBottom:16}},
+          h('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:8}},
+            h('span',{style:{display:'inline-block',width:12,height:12,borderRadius:'50%',background:group.color}}),
+            h('span',{style:{fontWeight:700,color:'#F8FAFC',fontSize:14}},group.name),
+            h('span',{style:{color:'#94A3B8',fontSize:12,marginLeft:8}},fmtDec(group.budgetMo)+'/mo budget')
+          ),
+          h('div',{style:{paddingLeft:20}},
+            groupSuppliers.map(function(s,j){
+              return h('div',{key:j,style:{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #1E293B',fontSize:13}},
+                h('div',{style:{color:'#E2E8F0'}},
+                  h('span',{style:{fontWeight:500}},s[1]),
+                  h('span',{style:{color:'#64748B',marginLeft:8}},s[2])
+                ),
+                h('div',{style:{display:'flex',gap:16,alignItems:'center'}},
+                  h('span',{style:{color:'#F8FAFC',fontWeight:500,fontFeatureSettings:'"tnum"'}},s[6]>0?fmtDec(s[6]):s[4]==='Annual'?'Annual':'$0'),
+                  h('span',{style:{color:'#64748B',fontSize:11,minWidth:60}},s[5])
+                )
+              );
+            })
+          )
+        );
+      })
+    )
+  );
+}
+
+/* ========== TAB 3: TASKS & ACTIONS ========== */
+function TasksTab(){
+  var tasksByOwner = {};
+  TASKS.forEach(function(t){
+    if(!tasksByOwner[t.owner]) tasksByOwner[t.owner]={tasks:[],total:0};
+    tasksByOwner[t.owner].tasks.push(t);
+    tasksByOwner[t.owner].total += t.amount;
+  });
+  var owners = Object.keys(tasksByOwner);
+
+  var criticalTasks = TASKS.filter(function(t){return t.priority==='critical';});
+  var highTasks = TASKS.filter(function(t){return t.priority==='high';});
+  var totalValue = TASKS.reduce(function(s,t){return s+t.amount;},0);
+
+  return h('div',null,
+    /* KPI Row */
+    h('div',{style:S.kpiRow},
+      h(KpiCard,{label:'Open Tasks',value:TASKS.length,sub:criticalTasks.length+' critical, '+highTasks.length+' high priority'}),
+      h(KpiCard,{label:'Total Value',value:fmtFull(totalValue),sub:'Pending corrections & payments',alert:totalValue>10000?'amber':null}),
+      h(KpiCard,{label:'Owners Involved',value:owners.length,sub:owners.join(', ')}),
+      h(KpiCard,{label:'Next Deadline',value:'31 May',sub:'CRICOS Renewal Application',alert:'red'})
+    ),
+
+    /* Task List */
+    h('div',{style:S.section},
+      h('div',{style:S.sectionTitle},'Action Items'),
+      h('div',{style:{overflowX:'auto'}},
+        h('table',{style:S.table},
+          h('thead',null,
+            h('tr',null,
+              h('th',{style:Object.assign({},S.th,{width:30})},'#'),
+              h('th',{style:S.th},'Task'),
+              h('th',{style:S.thR},'Amount'),
+              h('th',{style:S.th},'Owner'),
+              h('th',{style:S.th},'Category'),
+              h('th',{style:S.th},'Status'),
+              h('th',{style:S.th},'Priority')
+            )
+          ),
+          h('tbody',null,
+            TASKS.map(function(t,i){
+              var prColors = {critical:'#EF4444',high:'#F59E0B',medium:'#3B82F6',low:'#94A3B8'};
+              var pc = prColors[t.priority]||'#94A3B8';
+              return h('tr',{key:i,style:t.priority==='critical'?{background:'rgba(239,68,68,0.05)'}:{}},
+                h('td',{style:S.td},t.id),
+                h('td',{style:Object.assign({},S.td,{maxWidth:350})},t.task),
+                h('td',{style:S.tdR},t.amount>0?fmtDec(t.amount):'-'),
+                h('td',{style:Object.assign({},S.td,{fontWeight:500})},t.owner),
+                h('td',{style:S.td},
+                  h('span',{style:Object.assign({},S.tag,{background:'#475569',color:'#E2E8F0'})},t.category)
+                ),
+                h('td',{style:S.td},h(StatusBadge,{status:t.status})),
+                h('td',{style:S.td},
+                  h('span',{style:Object.assign({},S.tag,{background:pc+'22',color:pc,border:'1px solid '+pc})},t.priority.toUpperCase())
+                )
+              );
+            })
+          )
+        )
+      )
+    ),
+
+    /* Key Dates & Owner Summary side by side */
+    h('div',{style:S.grid2},
+      /* Key Dates */
+      h('div',{style:S.section},
+        h('div',{style:S.sectionTitle},'Key Compliance Dates'),
+        KEY_DATES.sort(function(a,b){return a.date.localeCompare(b.date);}).map(function(kd,i){
+          return h('div',{key:i,style:{display:'flex',alignItems:'flex-start',gap:12,padding:'12px 0',borderBottom:i<KEY_DATES.length-1?'1px solid #334155':'none'}},
+            h(SeverityDot,{severity:kd.severity}),
+            h('div',null,
+              h('div',{style:{fontWeight:600,color:'#F8FAFC',fontSize:14}},kd.label),
+              h('div',{style:{color:'#94A3B8',fontSize:12,marginTop:2}},kd.date),
+              h('div',{style:{color:'#64748B',fontSize:12,marginTop:4}},kd.detail)
+            )
+          );
+        })
+      ),
+
+      /* Owner Summary */
+      h('div',{style:S.section},
+        h('div',{style:S.sectionTitle},'Tasks by Owner'),
+        owners.map(function(owner,i){
+          var data = tasksByOwner[owner];
+          return h('div',{key:i,style:Object.assign({},S.miniCard,{marginBottom:12})},
+            h('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:8}},
+              h('span',{style:{fontWeight:700,fontSize:16,color:'#F8FAFC'}},owner),
+              h('span',{style:{fontSize:13,color:'#94A3B8'}},data.tasks.length+' task'+(data.tasks.length>1?'s':''))
+            ),
+            data.total > 0 ? h('div',{style:{fontSize:20,fontWeight:700,color:'#F59E0B',marginBottom:8}},fmtFull(data.total)+' total') : null,
+            data.tasks.map(function(t,j){
+              return h('div',{key:j,style:{display:'flex',justifyContent:'space-between',padding:'4px 0',fontSize:12,color:'#CBD5E1'}},
+                h('span',null,t.task.substring(0,50)+(t.task.length>50?'...':'')),
+                h(StatusBadge,{status:t.status})
+              );
+            })
+          );
+        })
+      )
+    )
+  );
+}
+
+/* ========== TAB 4: CASH VS ACCRUED ========== */
+function CashAccruedTab(){
+  /* Calculate GST impact per group */
+  var gstAnalysis = GROUPS.map(function(g){
+    var budgetExGST = g.gstPct > 0 ? g.budgetMo / (1 + g.gstPct/100) : g.budgetMo;
+    var gstAmount = g.budgetMo - budgetExGST;
+    var ytdActual = g.jan + g.feb;
+    var ytdBudgetExGST = budgetExGST * MONTHS_ELAPSED;
+    var ytdBudgetIncGST = g.budgetMo * MONTHS_ELAPSED;
+    var cashVsActual = ytdBudgetIncGST - ytdActual;
+    return {
+      name:g.name, color:g.color, key:g.key,
+      budgetIncGST:g.budgetMo, budgetExGST:budgetExGST, gstPerMonth:gstAmount,
+      gstPct:g.gstPct, gstFree:g.gstPct===0,
+      ytdActual:ytdActual, ytdBudgetInc:ytdBudgetIncGST, ytdBudgetEx:ytdBudgetExGST,
+      gap:cashVsActual, note:g.note
+    };
+  });
+
+  var totalBudgetInc = gstAnalysis.reduce(function(s,g){return s+g.budgetIncGST;},0);
+  var totalBudgetEx = gstAnalysis.reduce(function(s,g){return s+g.budgetExGST;},0);
+  var totalGST = totalBudgetInc - totalBudgetEx;
+  var totalYTDActual = gstAnalysis.reduce(function(s,g){return s+g.ytdActual;},0);
+  var totalYTDBudgetInc = gstAnalysis.reduce(function(s,g){return s+g.ytdBudgetInc;},0);
+
+  /* Accrual gaps */
+  var accrualItems = [
+    {item:'NEAS Membership',budgeted:935*2,recorded:0,gap:935*2,type:'Budgeted, not in P&L',reason:'Payment not recorded in Xero Jan-Feb'},
+    {item:'Finance & Accounting',budgeted:550*2,recorded:1939,gap:1939-1100,type:'Over-recorded',reason:'Actual bank+merchant fees exceeded budget estimate'},
+    {item:'Payroll Tax',budgeted:4000*2,recorded:18940,gap:18940-8000,type:'Massively over',reason:'Study Tour seasonal payroll spike — review with Yilia'},
+    {item:'Daily Operations',budgeted:1753*2,recorded:4908,gap:4908-3506,type:'Over-recorded',reason:'Filing fees and cleaning higher than monthly average'}
+  ];
+
+  /* Chart: Budget inc GST vs P&L ex-GST comparison */
+  var comparisonData = gstAnalysis.map(function(g){
+    return {name:g.name.length>12?g.name.substring(0,12)+'..':g.name,budgetInc:g.ytdBudgetInc,actualEx:g.ytdActual};
+  });
+
+  return h('div',null,
+    /* Explanation Panel */
+    h('div',{style:Object.assign({},S.section,{background:'linear-gradient(135deg,#1E293B,#0F172A)',borderColor:'#3B82F6'})},
+      h('div',{style:{fontSize:16,fontWeight:700,color:'#60A5FA',marginBottom:12}},'Understanding the GST & Accrual Gap'),
+      h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24}},
+        h('div',null,
+          h('div',{style:{fontSize:13,color:'#E2E8F0',lineHeight:1.6}},
+            h('strong',{style:{color:'#F59E0B'}},'Budget (inc GST)'),
+            ' = What we actually pay out of bank account. This is our OPEX schedule amount.'
+          ),
+          h('div',{style:{fontSize:13,color:'#E2E8F0',lineHeight:1.6,marginTop:8}},
+            h('strong',{style:{color:'#3B82F6'}},'P&L Actual (ex GST)'),
+            ' = What Xero shows in the Profit & Loss. GST is stripped out as it\'s recoverable via BAS.'
+          )
+        ),
+        h('div',null,
+          h('div',{style:{fontSize:13,color:'#E2E8F0',lineHeight:1.6}},
+            h('strong',{style:{color:'#10B981'}},'GST-Free items'),
+            ': Insurance, Bank Fees, Payroll Tax, China Office, Filing Fees — Budget = P&L amount.'
+          ),
+          h('div',{style:{fontSize:13,color:'#E2E8F0',lineHeight:1.6,marginTop:8}},
+            h('strong',{style:{color:'#EF4444'}},'GST items (10%)'),
+            ': IT, Printing, some Daily Ops — P&L shows ~10% less than budget (the GST portion).'
+          )
+        )
+      )
+    ),
+
+    /* KPI Row */
+    h('div',{style:S.kpiRow},
+      h(KpiCard,{label:'Monthly Budget (inc GST)',value:fmtDec(totalBudgetInc),sub:'What leaves the bank account'}),
+      h(KpiCard,{label:'Monthly Budget (ex GST)',value:fmtDec(totalBudgetEx),sub:'P&L equivalent'}),
+      h(KpiCard,{label:'GST Component',value:fmtDec(totalGST)+'/mo',sub:pct(totalGST/totalBudgetInc*100)+' of total budget',trend:'Recoverable via BAS'}),
+      h(KpiCard,{label:'YTD Gap',value:fmtFull(totalYTDBudgetInc - totalYTDActual),sub:'Budget (inc GST) minus P&L (ex GST)',trend:'Includes GST + timing differences'})
+    ),
+
+    /* Comparison Chart */
+    h('div',{style:S.section},
+      h('div',{style:S.sectionTitle},'YTD: Budget (inc GST) vs P&L Actual (ex GST) by Group'),
+      h('div',{style:{width:'100%',height:350}},
+        h(ResponsiveContainer,{width:'100%',height:'100%'},
+          h(BarChart,{data:comparisonData,margin:{top:20,right:30,bottom:5,left:10},layout:'vertical'},
+            h(CartesianGrid,{strokeDasharray:'3 3',stroke:'#334155'}),
+            h(XAxis,{type:'number',stroke:'#64748B',fontSize:11,tickFormatter:function(v){return '$'+Math.round(v/1000)+'K';}}),
+            h(YAxis,{type:'category',dataKey:'name',stroke:'#64748B',fontSize:11,width:100}),
+            h(Tooltip,{formatter:function(v){return fmtFull(v);},contentStyle:{background:'#1E293B',border:'1px solid #475569',borderRadius:8,color:'#E2E8F0'}}),
+            h(Legend,null),
+            h(Bar,{dataKey:'budgetInc',fill:'#F59E0B',name:'Budget (inc GST)',radius:[0,4,4,0]}),
+            h(Bar,{dataKey:'actualEx',fill:'#3B82F6',name:'P&L Actual (ex GST)',radius:[0,4,4,0]})
+          )
+        )
+      )
+    ),
+
+    /* GST Analysis Table */
+    h('div',{style:S.section},
+      h('div',{style:S.sectionTitle},'GST Impact by Group — Monthly'),
+      h('div',{style:{overflowX:'auto'}},
+        h('table',{style:S.table},
+          h('thead',null,
+            h('tr',null,
+              h('th',{style:S.th},'Group'),
+              h('th',{style:S.thR},'Budget (inc GST)'),
+              h('th',{style:S.thR},'Budget (ex GST)'),
+              h('th',{style:S.thR},'GST/month'),
+              h('th',{style:S.th},'GST Rate'),
+              h('th',{style:S.th},'GST Status')
+            )
+          ),
+          h('tbody',null,
+            gstAnalysis.map(function(g,i){
+              return h('tr',{key:i},
+                h('td',{style:Object.assign({},S.td,{fontWeight:500})},
+                  h('span',{style:{display:'inline-block',width:8,height:8,borderRadius:'50%',background:g.color,marginRight:8}}),
+                  g.name
+                ),
+                h('td',{style:S.tdR},fmtDec(g.budgetIncGST)),
+                h('td',{style:S.tdR},fmtDec(g.budgetExGST)),
+                h('td',{style:Object.assign({},S.tdR,{color:g.gstPerMonth>0?'#F59E0B':'#64748B'})},g.gstPerMonth>0?fmtDec(g.gstPerMonth):'-'),
+                h('td',{style:S.td},g.gstPct>0?g.gstPct+'%':'0%'),
+                h('td',{style:S.td},
+                  h('span',{style:Object.assign({},S.tag,{
+                    background:g.gstFree?'rgba(16,185,129,0.15)':'rgba(245,158,11,0.15)',
+                    color:g.gstFree?'#10B981':'#F59E0B'
+                  })},g.gstFree?'GST-FREE':'GST APPLIES')
+                )
+              );
+            }),
+            h('tr',{style:{fontWeight:700,borderTop:'2px solid #475569'}},
+              h('td',{style:Object.assign({},S.td,{fontWeight:700})},'TOTAL'),
+              h('td',{style:Object.assign({},S.tdR,{fontWeight:700})},fmtDec(totalBudgetInc)),
+              h('td',{style:Object.assign({},S.tdR,{fontWeight:700})},fmtDec(totalBudgetEx)),
+              h('td',{style:Object.assign({},S.tdR,{fontWeight:700,color:'#F59E0B'})},fmtDec(totalGST)),
+              h('td',{style:S.td},''),
+              h('td',{style:S.td},'')
+            )
+          )
+        )
+      )
+    ),
+
+    /* Accrual Gaps */
+    h('div',{style:S.section},
+      h('div',{style:S.sectionTitle},'Accrual Gaps — Budget vs P&L Discrepancies (YTD)'),
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:12}},
+        accrualItems.map(function(item,i){
+          var isOver = item.recorded > item.budgeted;
+          var color = item.gap > 0 && item.recorded > item.budgeted ? '#EF4444' : item.recorded === 0 ? '#F59E0B' : '#3B82F6';
+          return h('div',{key:i,style:Object.assign({},S.miniCard,{borderColor:color})},
+            h('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:8}},
+              h('span',{style:{fontWeight:600,color:'#F8FAFC'}},item.item),
+              h('span',{style:Object.assign({},S.tag,{background:color+'22',color:color})},item.type)
+            ),
+            h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}},
+              h('div',null,
+                h('div',{style:{fontSize:10,color:'#94A3B8'}},'BUDGETED'),
+                h('div',{style:{fontSize:16,fontWeight:700,color:'#F8FAFC'}},fmtFull(item.budgeted))
+              ),
+              h('div',null,
+                h('div',{style:{fontSize:10,color:'#94A3B8'}},'P&L ACTUAL'),
+                h('div',{style:{fontSize:16,fontWeight:700,color:'#3B82F6'}},fmtFull(item.recorded))
+              ),
+              h('div',null,
+                h('div',{style:{fontSize:10,color:'#94A3B8'}},'GAP'),
+                h('div',{style:{fontSize:16,fontWeight:700,color:color}},fmtFull(item.gap))
+              )
+            ),
+            h('div',{style:{fontSize:12,color:'#94A3B8',fontStyle:'italic'}},item.reason)
+          );
+        })
+      )
+    )
+  );
+}
+
+/* ========== MAIN APP ========== */
+var TABS = ['Budget Overview','Current Month','Tasks & Actions','Cash vs Accrued'];
+
+function App(){
+  var state = useState(0);
+  var activeTab = state[0];
+  var setTab = state[1];
+
+  var overBudget = ytdVariance > 0;
+  var statusColor = overBudget ? '#EF4444' : '#10B981';
+  var statusLabel = overBudget ? 'OVER BUDGET' : 'ON TRACK';
+  var openTasks = TASKS.length;
+
+  var tabContent;
+  switch(activeTab){
+    case 0: tabContent = h(BudgetTab); break;
+    case 1: tabContent = h(CurrentMonthTab); break;
+    case 2: tabContent = h(TasksTab); break;
+    case 3: tabContent = h(CashAccruedTab); break;
+    default: tabContent = h(BudgetTab);
+  }
+
+  return h('div',{style:{minHeight:'100vh',background:'#0B1120'}},
+    /* Header */
+    h('div',{style:S.header},
+      h('div',{style:{display:'flex',alignItems:'center',gap:16}},
+        h('div',{style:{width:10,height:10,borderRadius:'50%',background:overBudget?'#EF4444':'#10B981',boxShadow:'0 0 8px '+(overBudget?'#EF4444':'#10B981')}}),
+        h('div',{style:S.headerTitle},'Shafston OPEX 2026 Dashboard')
+      ),
+      h('div',{style:{display:'flex',alignItems:'center',gap:12}},
+        h('div',{style:Object.assign({},S.badge,{background:statusColor+'22',color:statusColor,border:'1px solid '+statusColor})},statusLabel),
+        openTasks > 0 ? h('div',{style:Object.assign({},S.badge,{background:'#F59E0B22',color:'#F59E0B',border:'1px solid #F59E0B'})},openTasks+' TASKS') : null,
+        h('div',{style:{fontSize:12,color:'#64748B'}},'Data: '+DATA_DATE)
+      )
+    ),
+
+    /* Navigation */
+    h('div',{style:S.nav},
+      TABS.map(function(tab,i){
+        return h('button',{key:i,style:activeTab===i?S.navBtnActive:S.navBtn,onClick:function(){setTab(i);}},tab);
+      })
+    ),
+
+    /* Content */
+    h('div',{style:S.content},tabContent),
+
+    /* Footer */
+    h('div',{style:S.footer},'Shafston International College | OPEX Dashboard 2026 | Budget: $'+MONTHLY_BUDGET.toLocaleString()+'/mo | Source: Xero + OPEX Schedule | Updated '+DATA_DATE)
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>
