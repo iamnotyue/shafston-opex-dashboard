@@ -197,7 +197,11 @@ var S = {
   tdR:{padding:'10px 12px',borderBottom:'1px solid #1E293B',color:'#E2E8F0',fontFeatureSettings:'"tnum"',textAlign:'right'},
   miniCard:{background:'#0F172A',borderRadius:8,padding:'12px 16px',border:'1px solid #334155'},
   tag:{display:'inline-block',padding:'2px 8px',borderRadius:4,fontSize:10,fontWeight:700,letterSpacing:'0.05em'},
-  footer:{textAlign:'center',padding:'16px',color:'#475569',fontSize:11}
+  footer:{textAlign:'center',padding:'16px',color:'#475569',fontSize:11},
+  filterBar:{display:'flex',flexWrap:'wrap',gap:6,marginBottom:20,alignItems:'center'},
+  filterLabel:{fontSize:12,fontWeight:600,color:'#94A3B8',marginRight:4,textTransform:'uppercase',letterSpacing:'0.05em'},
+  chip:{padding:'5px 12px',borderRadius:6,border:'1px solid #334155',cursor:'pointer',fontSize:12,fontWeight:500,background:'transparent',color:'#94A3B8',transition:'all 0.2s'},
+  chipActive:{padding:'5px 12px',borderRadius:6,border:'1px solid #3B82F6',cursor:'pointer',fontSize:12,fontWeight:600,background:'rgba(59,130,246,0.15)',color:'#60A5FA'}
 };
 
 /* ========== SHARED COMPONENTS ========== */
@@ -219,25 +223,118 @@ function StatusBadge(props){
   return h('span',{style:Object.assign({},S.tag,{background:c+'22',color:c,border:'1px solid '+c})},props.status.toUpperCase());
 }
 
+/* ========== HELPER: get actual for a group in a given month ========== */
+function getGroupActual(g, monthKey){
+  if(monthKey==='Jan') return g.jan;
+  if(monthKey==='Feb') return g.feb;
+  return null; /* future months */
+}
+
+/* Week ranges */
+var WEEKS = [{key:'All',label:'All Weeks'},{key:'W1',label:'W1 (1-7)',from:1,to:7},{key:'W2',label:'W2 (8-14)',from:8,to:14},{key:'W3',label:'W3 (15-21)',from:15,to:21},{key:'W4',label:'W4 (22+)',from:22,to:31}];
+
 /* ========== TAB 1: BUDGET OVERVIEW ========== */
 function BudgetTab(){
-  var overBudget = ytdVariance > 0;
+  var ps = useState('YTD'); var selectedPeriod = ps[0]; var setPeriod = ps[1];
+  var ws = useState('All'); var selectedWeek = ws[0]; var setWeek = ws[1];
+
+  /* Reset week when switching to YTD */
+  var isYTD = selectedPeriod === 'YTD';
+
+  /* Compute filtered metrics based on selected period */
+  var filtered = useMemo(function(){
+    if(isYTD){
+      /* YTD — sum all elapsed months */
+      var fActual = GROUPS.reduce(function(s,g){return s+g.jan+g.feb;},0);
+      var fBudget = MONTHLY_BUDGET_EX * MONTHS_ELAPSED;
+      var fGroupData = GROUPS.map(function(g){
+        var actual = g.jan+g.feb;
+        var budgetEx = exGST(g.budgetMo,g.gstPct) * MONTHS_ELAPSED;
+        var variance = actual - budgetEx;
+        var varPct = budgetEx>0?(variance/budgetEx*100):0;
+        return {key:g.key,name:g.name,color:g.color,actual:actual,budget:budgetEx,variance:variance,varPct:varPct,budgetMo:exGST(g.budgetMo,g.gstPct),gstPct:g.gstPct,note:g.note};
+      });
+      return {actual:fActual,budget:fBudget,groupData:fGroupData,monthCount:MONTHS_ELAPSED,label:MONTHS_ELAPSED+' months (Jan-Feb)'};
+    } else {
+      /* Single month */
+      var monthIdx = MONTHS.indexOf(selectedPeriod);
+      var fActual2 = GROUPS.reduce(function(s,g){var v=getGroupActual(g,selectedPeriod);return s+(v!=null?v:0);},0);
+      var spike = annualSpikes[selectedPeriod]||0;
+      var fBudget2 = MONTHLY_BUDGET_EX + spike;
+      var hasData = monthIdx < MONTHS_ELAPSED; /* only Jan, Feb have data */
+      var fGroupData2 = GROUPS.map(function(g){
+        var actual = getGroupActual(g,selectedPeriod);
+        var budgetEx = exGST(g.budgetMo,g.gstPct);
+        var variance = actual!=null?(actual-budgetEx):null;
+        var varPct = (actual!=null && budgetEx>0)?(variance/budgetEx*100):null;
+        return {key:g.key,name:g.name,color:g.color,actual:actual!=null?actual:0,budget:budgetEx,variance:variance!=null?variance:0,varPct:varPct!=null?varPct:0,budgetMo:budgetEx,gstPct:g.gstPct,note:g.note};
+      });
+      return {actual:fActual2,budget:fBudget2,groupData:fGroupData2,monthCount:1,label:selectedPeriod+' 2026'+(hasData?'':' (no data yet)'),hasData:hasData};
+    }
+  },[selectedPeriod]);
+
+  var fVariance = filtered.actual - filtered.budget;
+  var fVariancePct = filtered.budget>0?(fVariance/filtered.budget*100):0;
+  var overBudget = fVariance > 0;
   var statusColor = overBudget ? '#EF4444' : '#10B981';
   var statusLabel = overBudget ? 'OVER BUDGET' : 'UNDER BUDGET';
+  var fUtilization = filtered.budget>0?(filtered.actual/filtered.budget*100):0;
+
+  /* Group chart data from filtered */
+  var fGroupChartData = filtered.groupData.map(function(g){
+    return {name:g.name.length>14?g.name.substring(0,12)+'..':g.name,fullName:g.name,actual:g.actual,budget:Math.round(g.budget),color:g.color};
+  });
+
+  /* Variance sorted from filtered */
+  var fVarianceRanked = filtered.groupData.slice().sort(function(a,b){return Math.abs(b.variance)-Math.abs(a.variance);});
+
+  /* Weekly payment data — only shown when a specific month + week selected */
+  var weekPayments = useMemo(function(){
+    if(isYTD || selectedWeek==='All') return null;
+    var wk = WEEKS.find(function(w){return w.key===selectedWeek;});
+    if(!wk) return null;
+    return SUPPLIERS.filter(function(s){
+      if(s[4]!=='Monthly' && s[4]!=='Annual') return false;
+      var day = s[8];
+      if(day<=0) return false;
+      return day>=wk.from && day<=wk.to;
+    }).map(function(s){
+      return {supplier:s[1],item:s[2],amount:s[6],day:s[8],method:s[5],gst:s[7]};
+    }).sort(function(a,b){return a.day-b.day;});
+  },[selectedPeriod,selectedWeek]);
 
   return h('div',null,
+    /* Filter Bar */
+    h('div',{style:{background:'#1E293B',borderRadius:12,padding:'16px 20px',border:'1px solid #334155',marginBottom:20}},
+      h('div',{style:S.filterBar},
+        h('span',{style:S.filterLabel},'Period:'),
+        h('button',{style:selectedPeriod==='YTD'?S.chipActive:S.chip,onClick:function(){setPeriod('YTD');setWeek('All');}},'YTD'),
+        MONTHS.map(function(m){
+          var hasData = MONTHS.indexOf(m) < MONTHS_ELAPSED;
+          return h('button',{key:m,style:Object.assign({},selectedPeriod===m?S.chipActive:S.chip,!hasData?{opacity:0.5}:{}),onClick:function(){setPeriod(m);setWeek('All');}},m);
+        })
+      ),
+      !isYTD ? h('div',{style:S.filterBar},
+        h('span',{style:S.filterLabel},'Week:'),
+        WEEKS.map(function(w){
+          return h('button',{key:w.key,style:selectedWeek===w.key?S.chipActive:S.chip,onClick:function(){setWeek(w.key);}},w.label);
+        })
+      ) : null
+    ),
+
     /* KPI Row */
     h('div',{style:S.kpiRow},
-      h(KpiCard,{label:'Monthly Budget (ex-GST)',value:fmtDec(MONTHLY_BUDGET_EX),sub:'Excluding GST per month'}),
-      h(KpiCard,{label:'YTD Actual (ex-GST)',value:fmtFull(ytdActual),sub:MONTHS_ELAPSED+' months (Jan-Feb)',trend:fmtPct(ytdVariancePct)+' vs budget',trendUp:!overBudget}),
-      h(KpiCard,{label:'YTD Variance',value:fmtFull(Math.abs(ytdVariance)),valueColor:statusColor,sub:statusLabel,alert:overBudget?'red':null}),
-      h(KpiCard,{label:'Annual Budget (ex-GST)',value:fmtFull(ANNUAL_BUDGET_EX),sub:'Projected: '+fmtFull(annualProjected),trend:annualProjected<=ANNUAL_BUDGET_EX?'Under projected':'Over projected',trendUp:annualProjected<=ANNUAL_BUDGET_EX}),
-      h(KpiCard,{label:'Budget Utilization',value:pct(budgetUtilization),sub:'Target: 100%',alert:budgetUtilization>120?'red':budgetUtilization>110?'amber':null})
+      h(KpiCard,{label:isYTD?'Monthly Budget (ex-GST)':'Budget for '+selectedPeriod+' (ex-GST)',value:isYTD?fmtDec(MONTHLY_BUDGET_EX):fmtFull(Math.round(filtered.budget)),sub:isYTD?'Excluding GST per month':selectedPeriod+' budget'+(annualSpikes[selectedPeriod]?' (inc annual items)':'')}),
+      h(KpiCard,{label:(isYTD?'YTD':selectedPeriod)+' Actual (ex-GST)',value:fmtFull(filtered.actual),sub:filtered.label,trend:fmtPct(fVariancePct)+' vs budget',trendUp:!overBudget}),
+      h(KpiCard,{label:'Variance',value:fmtFull(Math.abs(fVariance)),valueColor:statusColor,sub:statusLabel,alert:overBudget?'red':null}),
+      isYTD?h(KpiCard,{label:'Annual Budget (ex-GST)',value:fmtFull(ANNUAL_BUDGET_EX),sub:'Projected: '+fmtFull(annualProjected),trend:annualProjected<=ANNUAL_BUDGET_EX?'Under projected':'Over projected',trendUp:annualProjected<=ANNUAL_BUDGET_EX}):
+        h(KpiCard,{label:'Month Progress',value:Math.round(fUtilization)+'%',sub:'of '+selectedPeriod+' budget used',alert:fUtilization>120?'red':fUtilization>110?'amber':null}),
+      h(KpiCard,{label:'Budget Utilization',value:pct(fUtilization),sub:'Target: 100%',alert:fUtilization>120?'red':fUtilization>110?'amber':null})
     ),
 
     /* Charts Row */
     h('div',{style:S.grid2},
-      /* Monthly Budget vs Actual */
+      /* Monthly Budget vs Actual — always show full year */
       h('div',{style:S.section},
         h('div',{style:S.sectionTitle},'Monthly Budget vs Actual (ex-GST)'),
         h('div',{style:S.chartWrap},
@@ -248,38 +345,74 @@ function BudgetTab(){
               h(YAxis,{stroke:'#64748B',fontSize:11,tickFormatter:function(v){return '$'+Math.round(v/1000)+'K';}}),
               h(Tooltip,{formatter:function(v){return v!=null?fmtFull(v):'-';},contentStyle:{background:'#1E293B',border:'1px solid #475569',borderRadius:8,color:'#E2E8F0'}}),
               h(Legend,null),
-              h(Bar,{dataKey:'budget',fill:'#334155',radius:[4,4,0,0],name:'Budget (ex-GST)'}),
-              h(Bar,{dataKey:'actual',fill:'#3B82F6',radius:[4,4,0,0],name:'Actual (ex-GST)'}),
+              h(Bar,{dataKey:'budget',fill:'#3B82F6',radius:[4,4,0,0],name:'Budget (ex-GST)'}),
+              h(Bar,{dataKey:'actual',fill:'#EF4444',radius:[4,4,0,0],name:'Actual (ex-GST)'}),
               h(ReferenceLine,{y:Math.round(MONTHLY_BUDGET_EX),stroke:'#F59E0B',strokeDasharray:'5 5',label:{value:'Base $'+Math.round(MONTHLY_BUDGET_EX/1000)+'K',fill:'#F59E0B',fontSize:11,position:'right'}})
             )
           )
         )
       ),
 
-      /* Group Budget vs Actual — horizontal bar chart */
+      /* Group Budget vs Actual — horizontal bar chart (filtered) */
       h('div',{style:S.section},
-        h('div',{style:S.sectionTitle},'Budget vs Actual by Group (YTD ex-GST)'),
+        h('div',{style:S.sectionTitle},'Budget vs Actual by Group ('+(isYTD?'YTD':selectedPeriod)+' ex-GST)'),
         h('div',{style:{width:'100%',height:320}},
           h(ResponsiveContainer,{width:'100%',height:'100%'},
-            h(BarChart,{data:groupChartData,margin:{top:10,right:30,bottom:5,left:10},layout:'vertical'},
+            h(BarChart,{data:fGroupChartData,margin:{top:10,right:30,bottom:5,left:10},layout:'vertical'},
               h(CartesianGrid,{strokeDasharray:'3 3',stroke:'#334155'}),
               h(XAxis,{type:'number',stroke:'#64748B',fontSize:11,tickFormatter:function(v){return '$'+Math.round(v/1000)+'K';}}),
               h(YAxis,{type:'category',dataKey:'name',stroke:'#64748B',fontSize:11,width:110}),
               h(Tooltip,{formatter:function(v){return fmtFull(v);},contentStyle:{background:'#1E293B',border:'1px solid #475569',borderRadius:8,color:'#E2E8F0'}}),
               h(Legend,null),
-              h(Bar,{dataKey:'budget',fill:'#475569',name:'Budget (ex-GST)',radius:[0,4,4,0]}),
-              h(Bar,{dataKey:'actual',fill:'#3B82F6',name:'Actual (ex-GST)',radius:[0,4,4,0]})
+              h(Bar,{dataKey:'budget',fill:'#3B82F6',name:'Budget (ex-GST)',radius:[0,4,4,0]}),
+              h(Bar,{dataKey:'actual',fill:'#EF4444',name:'Actual (ex-GST)',radius:[0,4,4,0]})
             )
           )
         )
       )
     ),
 
-    /* Variance Alerts */
+    /* Weekly Payments — only show when specific month + week selected */
+    weekPayments && weekPayments.length > 0 ? h('div',{style:S.section},
+      h('div',{style:S.sectionTitle},'Payments Due — '+selectedPeriod+' '+selectedWeek+' (Day '+WEEKS.find(function(w){return w.key===selectedWeek;}).from+'-'+WEEKS.find(function(w){return w.key===selectedWeek;}).to+')'),
+      h('div',{style:{overflowX:'auto'}},
+        h('table',{style:S.table},
+          h('thead',null,
+            h('tr',null,
+              h('th',{style:S.th},'Day'),
+              h('th',{style:S.th},'Supplier'),
+              h('th',{style:S.th},'Item'),
+              h('th',{style:S.thR},'Amount (inc GST)'),
+              h('th',{style:S.th},'Method')
+            )
+          ),
+          h('tbody',null,
+            weekPayments.map(function(p,i){
+              return h('tr',{key:i},
+                h('td',{style:S.td},'~'+p.day),
+                h('td',{style:Object.assign({},S.td,{fontWeight:500})},p.supplier),
+                h('td',{style:S.td},p.item),
+                h('td',{style:S.tdR},fmtDec(p.amount)),
+                h('td',{style:S.td},p.method)
+              );
+            }),
+            h('tr',{style:{borderTop:'2px solid #334155'}},
+              h('td',{style:S.td}),
+              h('td',{style:Object.assign({},S.td,{fontWeight:700})},'Total'),
+              h('td',{style:S.td}),
+              h('td',{style:Object.assign({},S.tdR,{fontWeight:700,color:'#F8FAFC'})},fmtDec(weekPayments.reduce(function(s,p){return s+p.amount;},0))),
+              h('td',{style:S.td})
+            )
+          )
+        )
+      )
+    ) : (weekPayments && weekPayments.length===0 ? h('div',{style:Object.assign({},S.section,{textAlign:'center',color:'#64748B',padding:40})},'No scheduled payments for '+selectedPeriod+' '+selectedWeek) : null),
+
+    /* Variance Alerts (filtered) */
     h('div',{style:S.section},
-      h('div',{style:S.sectionTitle},'Variance Alerts'),
+      h('div',{style:S.sectionTitle},'Variance Alerts'+(isYTD?'':' — '+selectedPeriod)),
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:12}},
-        varianceRanked.filter(function(g){return Math.abs(g.varPct)>10;}).map(function(g,i){
+        fVarianceRanked.filter(function(g){return Math.abs(g.varPct)>10;}).map(function(g,i){
           var over = g.variance > 0;
           var bgColor = over ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)';
           var borderColor = over ? '#EF4444' : '#10B981';
