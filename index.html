@@ -35,34 +35,8 @@ var BarChart=RC.BarChart, Bar=RC.Bar, LineChart=RC.LineChart, Line=RC.Line,
 
 /* ========== DATA CONSTANTS ========== */
 var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-var CURRENT_MONTH_IDX = 2; /* Mar = index 2, 0-based */
-var MONTHS_ELAPSED = 2; /* Jan+Feb complete */
-var DATA_DATE = 'Mar 6, 2026';
 
-/* Group colors */
-var GC = {it:'#3B82F6',ins:'#8B5CF6',mem:'#F59E0B',prt:'#10B981',fin:'#EF4444',ops:'#06B6D4',chn:'#F97316',tax:'#EC4899'};
-
-/* 8 OPEX Groups — budgetMo is inc-GST (from OPEX schedule), actuals are ex-GST (from Xero P&L) */
-var GROUPS = [
-  {key:'it',name:'IT Expenses',color:GC.it,budgetMo:5094.03,budgetYr:63206.08,gstPct:10,
-   jan:5386,feb:4865,note:'Includes SIA $805 annual (Mar)'},
-  {key:'ins',name:'Insurance',color:GC.ins,budgetMo:1782.26,budgetYr:39850.12,gstPct:0,
-   jan:1593,feb:1438,note:'WorkCover $18,463 due Jul'},
-  {key:'mem',name:'Membership',color:GC.mem,budgetMo:935.00,budgetYr:11220.00,gstPct:0,
-   jan:0,feb:0,note:'NEAS not recorded in P&L'},
-  {key:'prt',name:'Printing & Materials',color:GC.prt,budgetMo:850.00,budgetYr:10200.00,gstPct:10,
-   jan:813,feb:735,note:''},
-  {key:'fin',name:'Finance & Accounting',color:GC.fin,budgetMo:550.00,budgetYr:6600.00,gstPct:0,
-   jan:1019,feb:920,note:'Bank fees GST-free'},
-  {key:'ops',name:'Daily Operations',color:GC.ops,budgetMo:1753.32,budgetYr:21539.88,gstPct:5,
-   jan:2579,feb:2329,note:'Filing fees + cleaning + water'},
-  {key:'chn',name:'China Office',color:GC.chn,budgetMo:9167.00,budgetYr:110000.00,gstPct:0,
-   jan:4372,feb:3949,note:'$110K/year budget'},
-  {key:'tax',name:'Tax (Payroll)',color:GC.tax,budgetMo:4000.00,budgetYr:48000.00,gstPct:0,
-   jan:9953,feb:8987,note:'OVER BUDGET — Study Tour seasonal'}
-];
-
-/* Monthly budget inc-GST with annual item spikes (used by Current Month tab for payment schedule) */
+/* Monthly budget inc-GST with annual item spikes (used by payment schedule) */
 var MONTHLY_BUDGETS_INC = {
   Jan:24132,Feb:24132,Mar:24937,Apr:24132,May:28132,Jun:24132,
   Jul:42595,Aug:24132,Sep:24132,Oct:24132,Nov:24132,Dec:24132
@@ -103,18 +77,115 @@ var SUPPLIERS = [
   ['tax','QLD Revenue Office','Payroll Tax','5-7200','Monthly','Various',4000.00,false,0]
 ];
 
-/* Action Items (simplified — no owner column) */
-var TASKS = [
-  {id:1,task:'Confirm NEAS Jan Instalment 3 paid',amount:935,status:'pending',priority:'high'},
-  {id:2,task:'Pay Chang Li INV07 - Accommodation',amount:560,status:'unpaid',priority:'high'},
-  {id:3,task:'Xero correction: Burgundy entries to NAB Repayment',amount:13800,status:'action',priority:'high'},
-  {id:4,task:'Officeworks x2 miscoded to 5-4220 — recode to Study Tour',amount:87.28,status:'action',priority:'medium'},
-  {id:5,task:'Investigate Microsoft extra charge 22 Feb',amount:153.64,status:'investigating',priority:'medium'},
-  {id:6,task:'CRICOS Registration Renewal — apply by 31 May 2026',amount:4000,status:'upcoming',priority:'critical'},
-  {id:7,task:'Review Payroll Tax budget — actual $20,860 vs $8,667 budget',amount:0,status:'action',priority:'high'}
+// === DATA START ===
+var MONTHS_ELAPSED = 2;
+var CURRENT_MONTH_IDX = 2;
+var DATA_DATE = '2026-03-10';
+
+var GROUPS = [
+  {key:'it',name:'IT Expenses',budgetMo:5094.03,budgetYr:63206.08,gstPct:10,color:'#6366F1',jan:5470,feb:4820,mar:1262},
+  {key:'insurance',name:'Insurance',budgetMo:1782.26,budgetYr:39850.12,gstPct:0,color:'#8B5CF6',jan:1669,feb:1669,mar:1154},
+  {key:'member',name:'Membership',budgetMo:935,budgetYr:11220,gstPct:10,color:'#EC4899',jan:0,feb:850,mar:0},
+  {key:'print',name:'Printing & Materials',budgetMo:850,budgetYr:10200,gstPct:10,color:'#F59E0B',jan:728,feb:772,mar:0},
+  {key:'finance',name:'Finance & Accounting',budgetMo:550,budgetYr:6600,gstPct:10,color:'#10B981',jan:1004,feb:529,mar:650},
+  {key:'daily',name:'Daily Operations',budgetMo:1753.32,budgetYr:21539.88,gstPct:10,color:'#06B6D4',jan:1085,feb:6062,mar:55},
+  {key:'china',name:'China Office',budgetMo:9167,budgetYr:110000,gstPct:0,color:'#F87171',jan:4167,feb:0,mar:5000},
+  {key:'tax',name:'Payroll Tax',budgetMo:4000,budgetYr:48000,gstPct:0,color:'#A78BFA',jan:7175,feb:6842,mar:6842}
 ];
 
-/* Annual items for calendar view (Current Month tab) */
+var RENT_CATEGORIES = [
+  {key:'clean',name:'Cleaning & Gardening',color:'#10B981',jan:1085,feb:4039,mar:45},
+  {key:'rates',name:'Council Rates',color:'#F59E0B',jan:0,feb:0,mar:3000},
+  {key:'repair',name:'Repair & Maintenance',color:'#EF4444',jan:0,feb:1333,mar:0},
+  {key:'water',name:'Utilities - Water',color:'#3B82F6',jan:17795,feb:8106,mar:625}
+];
+
+var RENT_TXNS = [
+  {date:'2026-01-02',cat:'water',contact:'',amount:625},
+  {date:'2026-01-09',cat:'water',contact:'',amount:625},
+  {date:'2026-01-15',cat:'clean',contact:'',amount:210},
+  {date:'2026-01-16',cat:'water',contact:'',amount:625},
+  {date:'2026-01-21',cat:'water',contact:'',amount:339},
+  {date:'2026-01-21',cat:'water',contact:'',amount:661},
+  {date:'2026-01-23',cat:'clean',contact:'',amount:420},
+  {date:'2026-01-23',cat:'water',contact:'',amount:625},
+  {date:'2026-01-30',cat:'clean',contact:'INV-0655 1st',amount:455},
+  {date:'2026-01-30',cat:'water',contact:'',amount:625},
+  {date:'2026-02-06',cat:'clean',contact:'',amount:1190},
+  {date:'2026-02-06',cat:'clean',contact:'',amount:100},
+  {date:'2026-02-06',cat:'clean',contact:'INV-0655-2nd',amount:455},
+  {date:'2026-02-06',cat:'water',contact:'',amount:625},
+  {date:'2026-02-13',cat:'repair',contact:'',amount:333},
+  {date:'2026-02-13',cat:'clean',contact:'',amount:350},
+  {date:'2026-02-13',cat:'repair',contact:'shafston',amount:500},
+  {date:'2026-02-13',cat:'clean',contact:'shafston',amount:455},
+  {date:'2026-02-13',cat:'water',contact:'',amount:625},
+  {date:'2026-02-20',cat:'repair',contact:'INV-NO.028',amount:500},
+  {date:'2026-02-20',cat:'clean',contact:'',amount:68},
+  {date:'2026-02-20',cat:'clean',contact:'',amount:256},
+  {date:'2026-02-20',cat:'water',contact:'',amount:572},
+  {date:'2026-02-20',cat:'water',contact:'',amount:53},
+  {date:'2026-02-23',cat:'clean',contact:'payment refund',amount:324},
+  {date:'2026-02-23',cat:'water',contact:'',amount:1000},
+  {date:'2026-02-25',cat:'clean',contact:'reprocess',amount:324},
+  {date:'2026-02-27',cat:'clean',contact:'',amount:420},
+  {date:'2026-02-27',cat:'clean',contact:'',amount:98},
+  {date:'2026-01-09',cat:'water',contact:'',amount:11670},
+  {date:'2026-02-27',cat:'water',contact:'',amount:625},
+  {date:'2026-02-23',cat:'water',contact:'',amount:1000},
+  {date:'2026-01-21',cat:'water',contact:'',amount:339},
+  {date:'2026-01-21',cat:'water',contact:'',amount:661},
+  {date:'2026-01-21',cat:'water',contact:'',amount:339},
+  {date:'2026-01-21',cat:'water',contact:'',amount:661},
+  {date:'2026-02-23',cat:'water',contact:'',amount:1000},
+  {date:'2026-02-20',cat:'water',contact:'',amount:572},
+  {date:'2026-02-20',cat:'water',contact:'',amount:53},
+  {date:'2026-02-27',cat:'water',contact:'',amount:625},
+  {date:'2026-02-20',cat:'water',contact:'',amount:572},
+  {date:'2026-02-20',cat:'water',contact:'',amount:53},
+  {date:'2026-02-20',cat:'water',contact:'',amount:53},
+  {date:'2026-02-20',cat:'water',contact:'',amount:53},
+  {date:'2026-02-27',cat:'water',contact:'',amount:625},
+  {date:'2026-03-02',cat:'rates',contact:'',amount:3000},
+  {date:'2026-03-06',cat:'water',contact:'',amount:625},
+  {date:'2026-03-04',cat:'clean',contact:'',amount:45}
+];
+
+var SM_CATEGORIES = [
+  {key:'mat',name:'Marketing Materials',color:'#8B5CF6',jan:160,feb:771,mar:0},
+  {key:'travel',name:'Travelling Expenses',color:'#06B6D4',jan:1551,feb:1029,mar:0},
+  {key:'bonus',name:'Staff Bonus',color:'#F59E0B',jan:2144,feb:2144,mar:2144},
+  {key:'partner',name:'Marketing & Partnership',color:'#EC4899',jan:3000,feb:455,mar:0}
+];
+
+var SM_TXNS = [
+  {date:'2026-01-02',cat:'travel',contact:'SYD trip',amount:491},
+  {date:'2026-01-05',cat:'travel',contact:'',amount:730},
+  {date:'2026-01-06',cat:'travel',contact:'',amount:13},
+  {date:'2026-01-06',cat:'travel',contact:'',amount:51},
+  {date:'2026-01-13',cat:'bonus',contact:'',amount:1144},
+  {date:'2026-01-14',cat:'bonus',contact:'',amount:500},
+  {date:'2026-01-12',cat:'travel',contact:'Refund-due to cancelled -Train ticket-Brisbane to Sydney',amount:23},
+  {date:'2026-01-15',cat:'bonus',contact:'',amount:500},
+  {date:'2026-01-15',cat:'mat',contact:'',amount:160},
+  {date:'2026-01-19',cat:'partner',contact:'',amount:3000},
+  {date:'2026-01-28',cat:'travel',contact:'',amount:213},
+  {date:'2026-01-27',cat:'travel',contact:'',amount:29},
+  {date:'2026-02-11',cat:'travel',contact:'',amount:339},
+  {date:'2026-02-11',cat:'travel',contact:'',amount:263},
+  {date:'2026-02-11',cat:'travel',contact:'',amount:426},
+  {date:'2026-02-13',cat:'bonus',contact:'',amount:1000},
+  {date:'2026-02-13',cat:'partner',contact:'',amount:455},
+  {date:'2026-02-13',cat:'mat',contact:'',amount:640},
+  {date:'2026-02-25',cat:'bonus',contact:'',amount:1144},
+  {date:'2026-02-27',cat:'mat',contact:'',amount:44},
+  {date:'2026-02-27',cat:'mat',contact:'',amount:44},
+  {date:'2026-02-27',cat:'mat',contact:'',amount:44},
+  {date:'2026-03-09',cat:'bonus',contact:'',amount:2144}
+];
+// === DATA END ===
+
+/* Annual items for calendar view */
 var ANNUAL_ITEMS = [
   {month:'Mar',item:'Sign In App (SIA)',amount:805,group:'IT'},
   {month:'May',item:'CRICOS Renewal (est.)',amount:4000,group:'Compliance'},
@@ -135,7 +206,7 @@ function exGST(amount,gstPct){return gstPct>0?amount/(1+gstPct/100):amount;}
 var MONTHLY_BUDGET_EX = GROUPS.reduce(function(s,g){return s+exGST(g.budgetMo,g.gstPct);},0);
 var ANNUAL_BUDGET_EX = GROUPS.reduce(function(s,g){return s+exGST(g.budgetYr,g.gstPct);},0);
 
-var ytdActual = GROUPS.reduce(function(s,g){return s+g.jan+g.feb;},0);
+var ytdActual = GROUPS.reduce(function(s,g){var t=0;for(var i=0;i<MONTHS_ELAPSED;i++)t+=(g[MONTHS[i].toLowerCase()]||0);return s+t;},0);
 var ytdBudget = MONTHLY_BUDGET_EX * MONTHS_ELAPSED;
 var ytdVariance = ytdActual - ytdBudget;
 var ytdVariancePct = ytdVariance / ytdBudget * 100;
@@ -144,22 +215,21 @@ var budgetUtilization = ytdActual / ytdBudget * 100;
 
 /* Per-group YTD (ex-GST budget vs ex-GST actual) */
 var groupYTD = GROUPS.map(function(g){
-  var actual = g.jan + g.feb;
+  var actual=0;for(var i=0;i<MONTHS_ELAPSED;i++)actual+=(g[MONTHS[i].toLowerCase()]||0);
   var budgetEx = exGST(g.budgetMo, g.gstPct);
   var budget = budgetEx * MONTHS_ELAPSED;
   var variance = actual - budget;
   var varPct = budget > 0 ? (variance / budget * 100) : 0;
   return {key:g.key,name:g.name,color:g.color,actual:actual,budget:budget,variance:variance,varPct:varPct,
-          budgetMo:budgetEx,jan:g.jan,feb:g.feb,gstPct:g.gstPct,note:g.note};
+          budgetMo:budgetEx,gstPct:g.gstPct,note:g.note};
 });
 
 /* Monthly chart data — budget converted to ex-GST with annual spikes */
 var annualSpikes = {Mar:exGST(805,10), May:4000, Jul:18463};
-var monthlyChartData = MONTHS.map(function(m){
+var monthlyChartData = MONTHS.map(function(m,idx){
   var budget = MONTHLY_BUDGET_EX + (annualSpikes[m] || 0);
   var actual = null;
-  if(m==='Jan') actual = GROUPS.reduce(function(s,g){return s+g.jan;},0);
-  if(m==='Feb') actual = GROUPS.reduce(function(s,g){return s+g.feb;},0);
+  if(idx < MONTHS_ELAPSED) actual = GROUPS.reduce(function(s,g){return s+(g[m.toLowerCase()]||0);},0);
   return {month:m, budget:Math.round(budget), actual:actual};
 });
 
@@ -167,6 +237,11 @@ var monthlyChartData = MONTHS.map(function(m){
 var groupChartData = groupYTD.map(function(g){
   return {name:g.name.length>14?g.name.substring(0,12)+'..':g.name,fullName:g.name,actual:g.actual,budget:g.budget,color:g.color};
 });
+
+/* Helper: sum category months dynamically */
+function catSum(c){var t=0;for(var i=0;i<=CURRENT_MONTH_IDX;i++){var k=MONTHS[i].toLowerCase();t+=(c[k]||0);}return t;}
+function catMonth(c,m){return c[m.toLowerCase()]||0;}
+function txnMonthIdx(t){return new Date(t.date).getMonth();}
 
 /* Biggest variance items for alerts */
 var varianceRanked = groupYTD.slice().sort(function(a,b){return Math.abs(b.variance)-Math.abs(a.variance);});
@@ -217,26 +292,34 @@ function KpiCard(props){
   );
 }
 
-function StatusBadge(props){
-  var colors = {pending:'#F59E0B',unpaid:'#EF4444',action:'#3B82F6',investigating:'#8B5CF6',upcoming:'#06B6D4',complete:'#10B981',critical:'#EF4444'};
-  var c = colors[props.status]||'#94A3B8';
-  return h('span',{style:Object.assign({},S.tag,{background:c+'22',color:c,border:'1px solid '+c})},props.status.toUpperCase());
-}
-
 /* ========== HELPER: get actual for a group in a given month ========== */
 function getGroupActual(g, monthKey){
-  if(monthKey==='Jan') return g.jan;
-  if(monthKey==='Feb') return g.feb;
-  return null; /* future months */
+  var idx = MONTHS.indexOf(monthKey);
+  if(idx < 0 || idx > CURRENT_MONTH_IDX) return null;
+  return g[monthKey.toLowerCase()] || 0;
 }
 
 /* Week ranges */
 var WEEKS = [{key:'All',label:'All Weeks'},{key:'W1',label:'W1 (1-7)',from:1,to:7},{key:'W2',label:'W2 (8-14)',from:8,to:14},{key:'W3',label:'W3 (15-21)',from:15,to:21},{key:'W4',label:'W4 (22+)',from:22,to:31}];
 
-/* ========== TAB 1: BUDGET OVERVIEW ========== */
-function BudgetTab(){
+/* ========== TAB 1: OPEX OVERVIEW (merged Budget + Current Month) ========== */
+function OpexOverviewTab(){
   var ps = useState('YTD'); var selectedPeriod = ps[0]; var setPeriod = ps[1];
   var ws = useState('All'); var selectedWeek = ws[0]; var setWeek = ws[1];
+
+  /* Current month detail data (merged from CurrentMonthTab) */
+  var currentMonth = MONTHS[CURRENT_MONTH_IDX];
+  var today = new Date();
+  var dayElapsed = Math.min(today.getDate(), 6);
+  var monthBudget = MONTHLY_BUDGETS_INC[currentMonth] || 24132;
+  var monthSuppliers = SUPPLIERS.filter(function(s){return s[4]==='Monthly'||s[7]===currentMonth;}).map(function(s){
+    var day = s[8];
+    var status = day > 0 && day <= dayElapsed ? 'processed' : day > 0 ? 'upcoming' : 'variable';
+    return {group:s[0],supplier:s[1],item:s[2],account:s[3],amount:s[6],gst:s[7],day:day,method:s[5],status:status};
+  }).sort(function(a,b){return (a.day||99)-(b.day||99);});
+  var marchItems = monthSuppliers.slice();
+  if(currentMonth==='Mar') marchItems.push({group:'it',supplier:'Sign In App',item:'Visitor Sign-In (SIA) — ANNUAL',account:'5-4220',amount:805,gst:true,day:0,method:'Auto DD',status:'upcoming'});
+  var totalDue = marchItems.reduce(function(s,item){return s+item.amount;},0);
 
   /* Reset week when switching to YTD */
   var isYTD = selectedPeriod === 'YTD';
@@ -245,16 +328,16 @@ function BudgetTab(){
   var filtered = useMemo(function(){
     if(isYTD){
       /* YTD — sum all elapsed months */
-      var fActual = GROUPS.reduce(function(s,g){return s+g.jan+g.feb;},0);
+      var fActual = GROUPS.reduce(function(s,g){var t=0;for(var i=0;i<MONTHS_ELAPSED;i++)t+=(g[MONTHS[i].toLowerCase()]||0);return s+t;},0);
       var fBudget = MONTHLY_BUDGET_EX * MONTHS_ELAPSED;
       var fGroupData = GROUPS.map(function(g){
-        var actual = g.jan+g.feb;
+        var actual=0;for(var ii=0;ii<MONTHS_ELAPSED;ii++)actual+=(g[MONTHS[ii].toLowerCase()]||0);
         var budgetEx = exGST(g.budgetMo,g.gstPct) * MONTHS_ELAPSED;
         var variance = actual - budgetEx;
         var varPct = budgetEx>0?(variance/budgetEx*100):0;
         return {key:g.key,name:g.name,color:g.color,actual:actual,budget:budgetEx,variance:variance,varPct:varPct,budgetMo:exGST(g.budgetMo,g.gstPct),gstPct:g.gstPct,note:g.note};
       });
-      return {actual:fActual,budget:fBudget,groupData:fGroupData,monthCount:MONTHS_ELAPSED,label:MONTHS_ELAPSED+' months (Jan-Feb)'};
+      return {actual:fActual,budget:fBudget,groupData:fGroupData,monthCount:MONTHS_ELAPSED,label:MONTHS_ELAPSED+' months ('+MONTHS.slice(0,MONTHS_ELAPSED).join('-')+')'};
     } else {
       /* Single month */
       var monthIdx = MONTHS.indexOf(selectedPeriod);
@@ -429,72 +512,7 @@ function BudgetTab(){
       )
     ),
 
-    /* Action Items (simplified — no owner column) */
-    h('div',{style:S.section},
-      h('div',{style:S.sectionTitle},'Action Items'),
-      h('div',{style:{overflowX:'auto'}},
-        h('table',{style:S.table},
-          h('thead',null,
-            h('tr',null,
-              h('th',{style:Object.assign({},S.th,{width:30})},'#'),
-              h('th',{style:S.th},'Task'),
-              h('th',{style:S.thR},'Amount'),
-              h('th',{style:S.th},'Status'),
-              h('th',{style:S.th},'Priority')
-            )
-          ),
-          h('tbody',null,
-            TASKS.map(function(t,i){
-              var prColors = {critical:'#EF4444',high:'#F59E0B',medium:'#3B82F6',low:'#94A3B8'};
-              var pc = prColors[t.priority]||'#94A3B8';
-              return h('tr',{key:i,style:t.priority==='critical'?{background:'rgba(239,68,68,0.05)'}:{}},
-                h('td',{style:S.td},t.id),
-                h('td',{style:Object.assign({},S.td,{maxWidth:400})},t.task),
-                h('td',{style:S.tdR},t.amount>0?fmtDec(t.amount):'-'),
-                h('td',{style:S.td},h(StatusBadge,{status:t.status})),
-                h('td',{style:S.td},
-                  h('span',{style:Object.assign({},S.tag,{background:pc+'22',color:pc,border:'1px solid '+pc})},t.priority.toUpperCase())
-                )
-              );
-            })
-          )
-        )
-      )
-    )
-  );
-}
-
-/* ========== TAB 2: CURRENT MONTH ========== */
-function CurrentMonthTab(){
-  var currentMonth = MONTHS[CURRENT_MONTH_IDX];
-  var today = new Date();
-  var daysInMonth = 31; /* March */
-  var dayElapsed = Math.min(today.getDate(), 6); /* Data as of Mar 6 */
-  var monthBudget = MONTHLY_BUDGETS_INC[currentMonth] || 24132;
-
-  /* Suppliers due this month with debit day */
-  var monthSuppliers = SUPPLIERS.filter(function(s){return s[4]==='Monthly'||s[7]===currentMonth;}).map(function(s){
-    var day = s[8];
-    var status = day > 0 && day <= dayElapsed ? 'processed' : day > 0 ? 'upcoming' : 'variable';
-    return {group:s[0],supplier:s[1],item:s[2],account:s[3],amount:s[6],gst:s[7],day:day,method:s[5],status:status};
-  }).sort(function(a,b){return (a.day||99)-(b.day||99);});
-
-  /* Add SIA annual for March */
-  var marchItems = monthSuppliers.slice();
-  marchItems.push({group:'it',supplier:'Sign In App',item:'Visitor Sign-In (SIA) — ANNUAL',account:'5-4220',amount:805,gst:true,day:0,method:'Auto DD',status:'upcoming'});
-
-  var totalDue = marchItems.reduce(function(s,item){return s+item.amount;},0) + 805;
-
-  return h('div',null,
-    /* KPI Row */
-    h('div',{style:S.kpiRow},
-      h(KpiCard,{label:'Current Month',value:currentMonth+' 2026',sub:'Day '+dayElapsed+' of '+daysInMonth}),
-      h(KpiCard,{label:'Month Budget (inc GST)',value:fmtFull(monthBudget),sub:monthBudget>24132?'Includes annual items':'Base monthly budget'}),
-      h(KpiCard,{label:'Expected Payments',value:marchItems.length+' items',sub:fmtFull(totalDue)+' total due'}),
-      h(KpiCard,{label:'Special Items',value:'SIA Annual',sub:'$805 inc GST — Visitor Sign-In',alert:'amber'})
-    ),
-
-    /* Payment Schedule */
+    /* Payment Schedule (merged from CurrentMonthTab) */
     h('div',{style:S.section},
       h('div',{style:S.sectionTitle},currentMonth+' 2026 Payment Schedule'),
       h('div',{style:{overflowX:'auto'}},
@@ -530,7 +548,7 @@ function CurrentMonthTab(){
       )
     ),
 
-    /* Annual Items Calendar */
+    /* Annual Payment Calendar */
     h('div',{style:S.section},
       h('div',{style:S.sectionTitle},'Annual Payment Calendar'),
       h('div',{style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12}},
@@ -551,7 +569,7 @@ function CurrentMonthTab(){
       )
     ),
 
-    /* Group Breakdown for Current Month */
+    /* Supplier Detail by Group */
     h('div',{style:S.section},
       h('div',{style:S.sectionTitle},'Supplier Detail by Group'),
       GROUPS.map(function(group){
@@ -582,8 +600,231 @@ function CurrentMonthTab(){
   );
 }
 
+/* ========== TAB 2: RENT & OUTGOING ========== */
+
+function RentTab(){
+  var fs = useState('All'); var filterCat = fs[0]; var setFilterCat = fs[1];
+  var activeMonths = MONTHS.slice(0,CURRENT_MONTH_IDX+1);
+  var rentTotal = RENT_CATEGORIES.reduce(function(s,c){return s+catSum(c);},0);
+  var monthTotals = activeMonths.map(function(m){return RENT_CATEGORIES.reduce(function(s,c){return s+catMonth(c,m);},0);});
+  var filteredTxns = filterCat==='All'?RENT_TXNS:RENT_TXNS.filter(function(t){return t.cat===filterCat;});
+  var chartData = activeMonths.map(function(m,i){return {month:m,amount:monthTotals[i]};});
+  var pieData = RENT_CATEGORIES.map(function(c){return {name:c.name,value:catSum(c),color:c.color};});
+  /* Cat key→name lookup for txn display */
+  var catNameMap = {};RENT_CATEGORIES.forEach(function(c){catNameMap[c.key]=c.name;});
+  return h('div',null,
+    h('div',{style:S.kpiRow},
+      h(KpiCard,{label:'YTD Total (2026)',value:fmtFull(rentTotal),sub:activeMonths[0]+'-'+activeMonths[activeMonths.length-1]+' 2026'}),
+      activeMonths.map(function(m,i){
+        var txnCount = RENT_TXNS.filter(function(t){return txnMonthIdx(t)===i;}).length;
+        var label = i===CURRENT_MONTH_IDX ? m+' (partial)' : m;
+        return h(KpiCard,{key:m,label:label,value:fmtFull(monthTotals[i]),sub:txnCount+' transactions'});
+      })
+    ),
+    h('div',{style:S.grid2},
+      h('div',{style:S.section},
+        h('div',{style:S.sectionTitle},'Monthly Spend'),
+        h('div',{style:S.chartWrap},
+          h(ResponsiveContainer,{width:'100%',height:'100%'},
+            h(BarChart,{data:chartData,margin:{top:20,right:20,bottom:5,left:10}},
+              h(CartesianGrid,{strokeDasharray:'3 3',stroke:'#334155'}),
+              h(XAxis,{dataKey:'month',stroke:'#64748B',fontSize:12}),
+              h(YAxis,{stroke:'#64748B',fontSize:11,tickFormatter:function(v){return '$'+Math.round(v/1000)+'K';}}),
+              h(Tooltip,{formatter:function(v){return fmtFull(v);},contentStyle:{background:'#1E293B',border:'1px solid #475569',borderRadius:8,color:'#E2E8F0'}}),
+              h(Bar,{dataKey:'amount',fill:'#06B6D4',radius:[4,4,0,0],name:'Spend'},
+                h(LabelList,{dataKey:'amount',position:'top',formatter:function(v){return fmt(v);},style:{fill:'#94A3B8',fontSize:11}})
+              )
+            )
+          )
+        )
+      ),
+      h('div',{style:S.section},
+        h('div',{style:S.sectionTitle},'Breakdown by Category'),
+        h('div',{style:S.chartWrap},
+          h(ResponsiveContainer,{width:'100%',height:'100%'},
+            h(PieChart,null,
+              h(Pie,{data:pieData,dataKey:'value',nameKey:'name',cx:'50%',cy:'50%',outerRadius:110,label:function(e){return e.name+' '+fmt(e.value);}},
+                pieData.map(function(d,i){return h(Cell,{key:i,fill:d.color});})
+              ),
+              h(Tooltip,{formatter:function(v){return fmtFull(v);},contentStyle:{background:'#1E293B',border:'1px solid #475569',borderRadius:8,color:'#E2E8F0'}})
+            )
+          )
+        )
+      )
+    ),
+    h('div',{style:S.section},
+      h('div',{style:S.sectionTitle},'Category Summary'),
+      h('div',{style:{overflowX:'auto'}},
+        h('table',{style:S.table},
+          h('thead',null,h('tr',null,
+            h('th',{style:S.th},'Category'),
+            activeMonths.map(function(m){return h('th',{key:m,style:S.thR},m);}),
+            h('th',{style:S.thR},'YTD Total')
+          )),
+          h('tbody',null,
+            RENT_CATEGORIES.map(function(c,i){
+              var total=catSum(c);
+              return h('tr',{key:i},
+                h('td',{style:Object.assign({},S.td,{fontWeight:600})},h('span',{style:{display:'inline-block',width:10,height:10,borderRadius:'50%',background:c.color,marginRight:8}}),c.name),
+                activeMonths.map(function(m){var v=catMonth(c,m);return h('td',{key:m,style:S.tdR},v>0?fmtDec(v):'-');}),
+                h('td',{style:Object.assign({},S.tdR,{fontWeight:700,color:'#F8FAFC'})},fmtDec(total))
+              );
+            }),
+            h('tr',{style:{borderTop:'2px solid #475569'}},
+              h('td',{style:Object.assign({},S.td,{fontWeight:700})},'Total'),
+              activeMonths.map(function(m,i){return h('td',{key:m,style:Object.assign({},S.tdR,{fontWeight:700})},fmtDec(monthTotals[i]));}),
+              h('td',{style:Object.assign({},S.tdR,{fontWeight:800,color:'#F8FAFC',fontSize:15})},fmtDec(rentTotal))
+            )
+          )
+        )
+      )
+    ),
+    h('div',{style:S.section},
+      h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}},
+        h('div',{style:S.sectionTitle},'Transaction Detail'),
+        h('div',{style:S.filterBar},
+          h('span',{style:S.filterLabel},'Filter:'),
+          h('button',{style:filterCat==='All'?S.chipActive:S.chip,onClick:function(){setFilterCat('All');}},'All'),
+          RENT_CATEGORIES.map(function(c){return h('button',{key:c.key,style:filterCat===c.key?S.chipActive:S.chip,onClick:function(){setFilterCat(c.key);}},c.name);})
+        )
+      ),
+      h('div',{style:{overflowX:'auto',maxHeight:500,overflowY:'auto'}},
+        h('table',{style:S.table},
+          h('thead',{style:{position:'sticky',top:0,background:'#1E293B',zIndex:1}},h('tr',null,
+            h('th',{style:S.th},'Date'),h('th',{style:S.th},'Category'),h('th',{style:S.th},'Description'),h('th',{style:S.thR},'Amount')
+          )),
+          h('tbody',null,
+            filteredTxns.map(function(t,i){
+              return h('tr',{key:i},
+                h('td',{style:S.td},t.date),h('td',{style:S.td},catNameMap[t.cat]||t.cat),h('td',{style:S.td},t.contact),
+                h('td',{style:Object.assign({},S.tdR,{fontWeight:500})},fmtDec(t.amount))
+              );
+            }),
+            h('tr',{style:{borderTop:'2px solid #475569'}},
+              h('td',{style:S.td}),h('td',{style:Object.assign({},S.td,{fontWeight:700})},'Total ('+filteredTxns.length+' txns)'),h('td',{style:S.td}),
+              h('td',{style:Object.assign({},S.tdR,{fontWeight:700,color:'#F8FAFC'})},fmtDec(filteredTxns.reduce(function(s,t){return s+t.amount;},0)))
+            )
+          )
+        )
+      )
+    )
+  );
+}
+
+/* ========== TAB 3: SALES & MARKETING ========== */
+function SalesMarketingTab(){
+  var fs = useState('All'); var filterCat = fs[0]; var setFilterCat = fs[1];
+  var activeMonths = MONTHS.slice(0,CURRENT_MONTH_IDX+1);
+  var smTotal = SM_CATEGORIES.reduce(function(s,c){return s+catSum(c);},0);
+  var monthTotals = activeMonths.map(function(m){return SM_CATEGORIES.reduce(function(s,c){return s+catMonth(c,m);},0);});
+  var filteredTxns = filterCat==='All'?SM_TXNS:SM_TXNS.filter(function(t){return t.cat===filterCat;});
+  var stackData = activeMonths.map(function(m){
+    var obj = {month:m};
+    SM_CATEGORIES.forEach(function(c){obj[c.name] = catMonth(c,m);});
+    return obj;
+  });
+  var pieData = SM_CATEGORIES.map(function(c){return {name:c.name,value:catSum(c),color:c.color};});
+  var catNameMap = {};SM_CATEGORIES.forEach(function(c){catNameMap[c.key]=c.name;});
+  return h('div',null,
+    h('div',{style:S.kpiRow},
+      h(KpiCard,{label:'YTD Total (2026)',value:fmtFull(smTotal),sub:activeMonths[0]+'-'+activeMonths[activeMonths.length-1]+' 2026'}),
+      activeMonths.map(function(m,i){
+        var txnCount = SM_TXNS.filter(function(t){return txnMonthIdx(t)===i;}).length;
+        var label = i===CURRENT_MONTH_IDX ? m+' (partial)' : m;
+        return h(KpiCard,{key:m,label:label,value:fmtFull(monthTotals[i]),sub:txnCount+' transactions'});
+      })
+    ),
+    h('div',{style:S.grid2},
+      h('div',{style:S.section},
+        h('div',{style:S.sectionTitle},'Monthly Spend by Category'),
+        h('div',{style:S.chartWrap},
+          h(ResponsiveContainer,{width:'100%',height:'100%'},
+            h(BarChart,{data:stackData,margin:{top:20,right:20,bottom:5,left:10}},
+              h(CartesianGrid,{strokeDasharray:'3 3',stroke:'#334155'}),
+              h(XAxis,{dataKey:'month',stroke:'#64748B',fontSize:12}),
+              h(YAxis,{stroke:'#64748B',fontSize:11,tickFormatter:function(v){return '$'+Math.round(v/1000)+'K';}}),
+              h(Tooltip,{formatter:function(v){return fmtFull(v);},contentStyle:{background:'#1E293B',border:'1px solid #475569',borderRadius:8,color:'#E2E8F0'}}),
+              h(Legend,null),
+              SM_CATEGORIES.map(function(c){return h(Bar,{key:c.key,dataKey:c.name,stackId:'a',fill:c.color});})
+            )
+          )
+        )
+      ),
+      h('div',{style:S.section},
+        h('div',{style:S.sectionTitle},'Breakdown by Category'),
+        h('div',{style:S.chartWrap},
+          h(ResponsiveContainer,{width:'100%',height:'100%'},
+            h(PieChart,null,
+              h(Pie,{data:pieData,dataKey:'value',nameKey:'name',cx:'50%',cy:'50%',outerRadius:110,label:function(e){return e.name+' '+fmt(e.value);}},
+                pieData.map(function(d,i){return h(Cell,{key:i,fill:d.color});})
+              ),
+              h(Tooltip,{formatter:function(v){return fmtFull(v);},contentStyle:{background:'#1E293B',border:'1px solid #475569',borderRadius:8,color:'#E2E8F0'}})
+            )
+          )
+        )
+      )
+    ),
+    h('div',{style:S.section},
+      h('div',{style:S.sectionTitle},'Category Summary'),
+      h('div',{style:{overflowX:'auto'}},
+        h('table',{style:S.table},
+          h('thead',null,h('tr',null,
+            h('th',{style:S.th},'Category'),
+            activeMonths.map(function(m){return h('th',{key:m,style:S.thR},m);}),
+            h('th',{style:S.thR},'YTD Total')
+          )),
+          h('tbody',null,
+            SM_CATEGORIES.map(function(c,i){
+              var total=catSum(c);
+              return h('tr',{key:i},
+                h('td',{style:Object.assign({},S.td,{fontWeight:600})},h('span',{style:{display:'inline-block',width:10,height:10,borderRadius:'50%',background:c.color,marginRight:8}}),c.name),
+                activeMonths.map(function(m){var v=catMonth(c,m);return h('td',{key:m,style:S.tdR},v>0?fmtDec(v):'-');}),
+                h('td',{style:Object.assign({},S.tdR,{fontWeight:700,color:'#F8FAFC'})},fmtDec(total))
+              );
+            }),
+            h('tr',{style:{borderTop:'2px solid #475569'}},
+              h('td',{style:Object.assign({},S.td,{fontWeight:700})},'Total'),
+              activeMonths.map(function(m,i){return h('td',{key:m,style:Object.assign({},S.tdR,{fontWeight:700})},fmtDec(monthTotals[i]));}),
+              h('td',{style:Object.assign({},S.tdR,{fontWeight:800,color:'#F8FAFC',fontSize:15})},fmtDec(smTotal))
+            )
+          )
+        )
+      )
+    ),
+    h('div',{style:S.section},
+      h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}},
+        h('div',{style:S.sectionTitle},'Transaction Detail'),
+        h('div',{style:S.filterBar},
+          h('span',{style:S.filterLabel},'Filter:'),
+          h('button',{style:filterCat==='All'?S.chipActive:S.chip,onClick:function(){setFilterCat('All');}},'All'),
+          SM_CATEGORIES.map(function(c){return h('button',{key:c.key,style:filterCat===c.key?S.chipActive:S.chip,onClick:function(){setFilterCat(c.key);}},c.name);})
+        )
+      ),
+      h('div',{style:{overflowX:'auto',maxHeight:500,overflowY:'auto'}},
+        h('table',{style:S.table},
+          h('thead',{style:{position:'sticky',top:0,background:'#1E293B',zIndex:1}},h('tr',null,
+            h('th',{style:S.th},'Date'),h('th',{style:S.th},'Category'),h('th',{style:S.th},'Description'),h('th',{style:S.thR},'Amount')
+          )),
+          h('tbody',null,
+            filteredTxns.map(function(t,i){
+              return h('tr',{key:i},
+                h('td',{style:S.td},t.date),h('td',{style:S.td},catNameMap[t.cat]||t.cat),h('td',{style:S.td},t.contact),
+                h('td',{style:Object.assign({},S.tdR,{fontWeight:500})},fmtDec(t.amount))
+              );
+            }),
+            h('tr',{style:{borderTop:'2px solid #475569'}},
+              h('td',{style:S.td}),h('td',{style:Object.assign({},S.td,{fontWeight:700})},'Total ('+filteredTxns.length+' txns)'),h('td',{style:S.td}),
+              h('td',{style:Object.assign({},S.tdR,{fontWeight:700,color:'#F8FAFC'})},fmtDec(filteredTxns.reduce(function(s,t){return s+t.amount;},0)))
+            )
+          )
+        )
+      )
+    )
+  );
+}
+
 /* ========== MAIN APP ========== */
-var TABS = ['Budget Overview','Current Month'];
+var TABS = ['OPEX Overview','Rent & Outgoing','Sales & Marketing'];
 
 function App(){
   var state = useState(0);
@@ -593,13 +834,13 @@ function App(){
   var overBudget = ytdVariance > 0;
   var statusColor = overBudget ? '#EF4444' : '#10B981';
   var statusLabel = overBudget ? 'OVER BUDGET' : 'ON TRACK';
-  var openTasks = TASKS.length;
 
   var tabContent;
   switch(activeTab){
-    case 0: tabContent = h(BudgetTab); break;
-    case 1: tabContent = h(CurrentMonthTab); break;
-    default: tabContent = h(BudgetTab);
+    case 0: tabContent = h(OpexOverviewTab); break;
+    case 1: tabContent = h(RentTab); break;
+    case 2: tabContent = h(SalesMarketingTab); break;
+    default: tabContent = h(OpexOverviewTab);
   }
 
   return h('div',{style:{minHeight:'100vh',background:'#0B1120'}},
@@ -611,7 +852,6 @@ function App(){
       ),
       h('div',{style:{display:'flex',alignItems:'center',gap:12}},
         h('div',{style:Object.assign({},S.badge,{background:statusColor+'22',color:statusColor,border:'1px solid '+statusColor})},statusLabel),
-        openTasks > 0 ? h('div',{style:Object.assign({},S.badge,{background:'#F59E0B22',color:'#F59E0B',border:'1px solid #F59E0B'})},openTasks+' TASKS') : null,
         h('div',{style:{fontSize:12,color:'#64748B'}},'Data: '+DATA_DATE)
       )
     ),
