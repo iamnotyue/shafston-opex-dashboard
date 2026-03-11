@@ -36,13 +36,14 @@ var BarChart=RC.BarChart, Bar=RC.Bar, LineChart=RC.LineChart, Line=RC.Line,
 /* ========== DATA CONSTANTS ========== */
 var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-/* Monthly budget inc-GST with annual item spikes (used by payment schedule) */
+/* Monthly budget inc-GST with annual item spikes (used by payment schedule)
+   Reduced by $920 (5-5100 items moved to Rent) from original $24,132 */
 var MONTHLY_BUDGETS_INC = {
-  Jan:24132,Feb:24132,Mar:24937,Apr:24132,May:28132,Jun:24132,
-  Jul:42595,Aug:24132,Sep:24132,Oct:24132,Nov:24132,Dec:24132
+  Jan:23212,Feb:23212,Mar:24017,Apr:23212,May:27212,Jun:23212,
+  Jul:41675,Aug:23212,Sep:23212,Oct:23212,Nov:23212,Dec:23212
 };
 
-/* 31 Suppliers — [groupKey, supplier, item, account, freq, method, budgetMo(inc-GST), gst, debitDay] */
+/* Suppliers — [groupKey, supplier, item, account, freq, method, budgetMo(inc-GST), gst, debitDay] */
 var SUPPLIERS = [
   ['it','aXcelerate','Student Management System','5-4223','Monthly','Auto DD',1890.00,true,12],
   ['it','Exetel Pty Ltd','Internet - BNE','5-4222','Monthly','Auto DD',900.00,true,8],
@@ -59,23 +60,23 @@ var SUPPLIERS = [
   ['it','Read AI','AI Meeting Notes','5-4220','Annual','Auto DD',0,true,19],
   ['it','Servers Australia','Website Hosting','5-4220','Monthly','Auto DD',505.89,true,19],
   ['it','Sign In App','Visitor Sign-In (SIA)','5-4220','Annual','Auto DD',0,true,0],
-  ['ins','ClearMatch Originate','Public Liability','5-8100','Monthly','Auto DD',1269.51,false,9],
-  ['ins','ClearMatch Originate','Professional Indemnity','5-8100','Monthly','Auto DD',512.75,false,15],
-  ['ins','WorkCover Queensland','WorkCover QLD','5-8100','Annual','Invoice',0,false,0],
-  ['mem','NEAS Australia','NEAS Membership','5-4370','Monthly','Invoice',935.00,false,13],
-  ['prt','Abacus Calculators','Printer Rental - BNE','5-4221','Monthly','Auto DD',850.00,true,19],
-  ['fin','Westpac','Account Fees (x5 accts)','5-9200','Monthly','Auto (bank)',80.00,false,2],
-  ['fin','CBA','Cafe Account Fees','5-9200','Monthly','Auto (bank)',5.00,false,2],
-  ['fin','Westpac','Merchant Fees','5-9201','Monthly','Auto (bank)',420.00,false,2],
-  ['fin','CBA','Merchant Fees','5-9201','Monthly','Auto (bank)',45.00,false,2],
-  ['ops','Chang Li','Cleaning - 46 Thorn St','5-5100','Monthly','Invoice',770.00,true,0],
-  ['ops','Klean King Pty Ltd','Office Supplies','5-5100','Annual','Invoice',0,true,0],
-  ['ops','AK Health Care','Water Dispenser - BNE (x2)','5-5100','Monthly','Auto DD',110.00,true,21],
-  ['ops','AK Health Care','Water Dispenser - GC','5-5100','Monthly','Auto DD',39.99,true,20],
-  ['ops','Various','Filing Fees (CRICOS/ASQA)','5-3155','Variable','Invoice',833.33,false,0],
-  ['chn','China Office','China Office Expense','5-1000','Monthly','Various',9167.00,false,0],
+  ['insurance','ClearMatch Originate','Public Liability','5-8100','Monthly','Auto DD',1269.51,false,9],
+  ['insurance','ClearMatch Originate','Professional Indemnity','5-8100','Monthly','Auto DD',512.75,false,15],
+  ['insurance','WorkCover Queensland','WorkCover QLD','5-8100','Annual','Invoice',0,false,0],
+  ['member','NEAS Australia','NEAS Membership','5-4370','Monthly','Invoice',935.00,false,13],
+  ['print','Abacus Calculators','Printer Rental - BNE','5-4221','Monthly','Auto DD',850.00,true,19],
+  ['finance','Westpac','Account Fees (x5 accts)','5-9200','Monthly','Auto (bank)',80.00,false,2],
+  ['finance','CBA','Cafe Account Fees','5-9200','Monthly','Auto (bank)',5.00,false,2],
+  ['finance','Westpac','Merchant Fees','5-9201','Monthly','Auto (bank)',420.00,false,2],
+  ['finance','CBA','Merchant Fees','5-9201','Monthly','Auto (bank)',45.00,false,2],
+  ['daily','Various','Filing Fees (CRICOS/ASQA)','5-3155','Variable','Invoice',833.33,false,0],
+  ['china','China Office','China Office Expense','5-1000','Monthly','Various',9167.00,false,0],
   ['tax','QLD Revenue Office','Payroll Tax','5-7200','Monthly','Various',4000.00,false,0]
 ];
+
+/* Rent & Outgoing budget ($380,200/yr) and Sales & Marketing budget ($310,069/yr) */
+var RENT_BUDGET_YR = 380200;
+var SM_BUDGET_YR = 310069;
 
 // === DATA START ===
 var MONTHS_ELAPSED = 2;
@@ -94,10 +95,14 @@ var GROUPS = [
 ];
 
 var RENT_CATEGORIES = [
+  {key:'rent_kp',name:'Rent - Kangaroo Point',color:'#6366F1',jan:0,feb:0,mar:0},
+  {key:'rent_syd',name:'Rent - Sydney',color:'#A78BFA',jan:0,feb:0,mar:0},
+  {key:'rent_gc',name:'Rent - Gold Coast (closed)',color:'#F87171',jan:0,feb:0,mar:0},
   {key:'clean',name:'Cleaning & Gardening',color:'#10B981',jan:1085,feb:4039,mar:45},
   {key:'rates',name:'Council Rates',color:'#F59E0B',jan:0,feb:0,mar:3000},
   {key:'repair',name:'Repair & Maintenance',color:'#EF4444',jan:0,feb:1333,mar:0},
-  {key:'water',name:'Utilities - Water',color:'#3B82F6',jan:17795,feb:8106,mar:625}
+  {key:'water',name:'Utilities - Water',color:'#3B82F6',jan:17795,feb:8106,mar:625},
+  {key:'electricity',name:'Utilities - Electricity',color:'#06B6D4',jan:0,feb:0,mar:0}
 ];
 
 var RENT_TXNS = [
@@ -405,14 +410,12 @@ function OpexOverviewTab(){
       ) : null
     ),
 
-    /* KPI Row */
+    /* KPI Row — 4 cards: Total Budget, YTD/Month Budget, YTD/Month Actual, Variance */
     h('div',{style:S.kpiRow},
-      h(KpiCard,{label:isYTD?'Monthly Budget (ex-GST)':'Budget for '+selectedPeriod+' (ex-GST)',value:isYTD?fmtDec(MONTHLY_BUDGET_EX):fmtFull(Math.round(filtered.budget)),sub:isYTD?'Excluding GST per month':selectedPeriod+' budget'+(annualSpikes[selectedPeriod]?' (inc annual items)':'')}),
-      h(KpiCard,{label:(isYTD?'YTD':selectedPeriod)+' Actual (ex-GST)',value:fmtFull(filtered.actual),sub:filtered.label,trend:fmtPct(fVariancePct)+' vs budget',trendUp:!overBudget}),
-      h(KpiCard,{label:'Variance',value:fmtFull(Math.abs(fVariance)),valueColor:statusColor,sub:statusLabel,alert:overBudget?'red':null}),
-      isYTD?h(KpiCard,{label:'Annual Budget (ex-GST)',value:fmtFull(ANNUAL_BUDGET_EX),sub:'Projected: '+fmtFull(annualProjected),trend:annualProjected<=ANNUAL_BUDGET_EX?'Under projected':'Over projected',trendUp:annualProjected<=ANNUAL_BUDGET_EX}):
-        h(KpiCard,{label:'Month Progress',value:Math.round(fUtilization)+'%',sub:'of '+selectedPeriod+' budget used',alert:fUtilization>120?'red':fUtilization>110?'amber':null}),
-      h(KpiCard,{label:'Budget Utilization',value:pct(fUtilization),sub:'Target: 100%',alert:fUtilization>120?'red':fUtilization>110?'amber':null})
+      h(KpiCard,{label:'Total Budget (Annual)',value:fmtFull(ANNUAL_BUDGET_EX),sub:'$'+Math.round(MONTHLY_BUDGET_EX).toLocaleString()+'/mo (ex-GST)'}),
+      h(KpiCard,{label:isYTD?'YTD Budget':selectedPeriod+' Budget',value:fmtFull(Math.round(filtered.budget)),sub:isYTD?MONTHS_ELAPSED+' months':'ex-GST'+(annualSpikes[selectedPeriod]?' (inc annual items)':'')}),
+      h(KpiCard,{label:isYTD?'YTD Actual':selectedPeriod+' Actual',value:fmtFull(filtered.actual),sub:filtered.label,trend:fmtPct(fVariancePct)+' vs budget',trendUp:!overBudget}),
+      h(KpiCard,{label:'Variance',value:(fVariance>=0?'+':'')+fmtFull(fVariance),valueColor:statusColor,sub:statusLabel+' | '+pct(fUtilization)+' utilization',alert:overBudget?'red':null})
     ),
 
     /* Charts Row */
@@ -603,85 +606,164 @@ function OpexOverviewTab(){
 /* ========== TAB 2: RENT & OUTGOING ========== */
 
 function RentTab(){
+  var ps = useState('YTD'); var selectedPeriod = ps[0]; var setPeriod = ps[1];
   var fs = useState('All'); var filterCat = fs[0]; var setFilterCat = fs[1];
   var activeMonths = MONTHS.slice(0,CURRENT_MONTH_IDX+1);
-  var rentTotal = RENT_CATEGORIES.reduce(function(s,c){return s+catSum(c);},0);
-  var monthTotals = activeMonths.map(function(m){return RENT_CATEGORIES.reduce(function(s,c){return s+catMonth(c,m);},0);});
-  var filteredTxns = filterCat==='All'?RENT_TXNS:RENT_TXNS.filter(function(t){return t.cat===filterCat;});
-  var chartData = activeMonths.map(function(m,i){return {month:m,amount:monthTotals[i]};});
-  var pieData = RENT_CATEGORIES.map(function(c){return {name:c.name,value:catSum(c),color:c.color};});
-  /* Cat key→name lookup for txn display */
+  var isYTD = selectedPeriod === 'YTD';
+  var rentBudgetMo = RENT_BUDGET_YR / 12;
   var catNameMap = {};RENT_CATEGORIES.forEach(function(c){catNameMap[c.key]=c.name;});
+
+  /* Compute filtered metrics */
+  var filtered = useMemo(function(){
+    if(isYTD){
+      var actual = RENT_CATEGORIES.reduce(function(s,c){return s+catSum(c);},0);
+      var budget = rentBudgetMo * MONTHS_ELAPSED;
+      return {actual:actual,budget:budget,label:MONTHS_ELAPSED+' months ('+MONTHS.slice(0,MONTHS_ELAPSED).join('-')+')'};
+    } else {
+      var mIdx = MONTHS.indexOf(selectedPeriod);
+      var hasData = mIdx <= CURRENT_MONTH_IDX;
+      var actual2 = hasData ? RENT_CATEGORIES.reduce(function(s,c){return s+catMonth(c,selectedPeriod);},0) : 0;
+      return {actual:actual2,budget:rentBudgetMo,label:selectedPeriod+' 2026'+(hasData?'':' (no data)'),hasData:hasData};
+    }
+  },[selectedPeriod]);
+
+  var fVariance = filtered.actual - filtered.budget;
+  var fVariancePct = filtered.budget>0?(fVariance/filtered.budget*100):0;
+  var overBudget = fVariance > 0;
+  var statusColor = overBudget ? '#EF4444' : '#10B981';
+  var statusLabel = overBudget ? 'OVER BUDGET' : 'UNDER BUDGET';
+  var fUtilization = filtered.budget>0?(filtered.actual/filtered.budget*100):0;
+
+  /* Filtered transactions */
+  var periodTxns = isYTD ? RENT_TXNS : RENT_TXNS.filter(function(t){var mi=txnMonthIdx(t);return mi===MONTHS.indexOf(selectedPeriod);});
+  var filteredTxns = filterCat==='All' ? periodTxns : periodTxns.filter(function(t){return t.cat===filterCat;});
+
+  /* Chart data — stacked bar by category per month */
+  var chartMonths = isYTD ? activeMonths : [selectedPeriod];
+  var stackData = chartMonths.map(function(m){
+    var obj = {month:m,budget:Math.round(rentBudgetMo)};
+    RENT_CATEGORIES.forEach(function(c){obj[c.name] = catMonth(c,m);});
+    return obj;
+  });
+
+  /* Category horizontal bar data */
+  var catBarData = RENT_CATEGORIES.map(function(c){
+    var val = isYTD ? catSum(c) : catMonth(c,selectedPeriod);
+    return {name:c.name,amount:val,color:c.color};
+  });
+
+  /* Month totals for table */
+  var tableMonths = isYTD ? activeMonths : [selectedPeriod];
+  var monthTotals = tableMonths.map(function(m){return RENT_CATEGORIES.reduce(function(s,c){return s+catMonth(c,m);},0);});
+
   return h('div',null,
-    h('div',{style:S.kpiRow},
-      h(KpiCard,{label:'YTD Total (2026)',value:fmtFull(rentTotal),sub:activeMonths[0]+'-'+activeMonths[activeMonths.length-1]+' 2026'}),
-      activeMonths.map(function(m,i){
-        var txnCount = RENT_TXNS.filter(function(t){return txnMonthIdx(t)===i;}).length;
-        var label = i===CURRENT_MONTH_IDX ? m+' (partial)' : m;
-        return h(KpiCard,{key:m,label:label,value:fmtFull(monthTotals[i]),sub:txnCount+' transactions'});
-      })
+    /* Filter Bar */
+    h('div',{style:{background:'#1E293B',borderRadius:12,padding:'16px 20px',border:'1px solid #334155',marginBottom:20}},
+      h('div',{style:S.filterBar},
+        h('span',{style:S.filterLabel},'Period:'),
+        h('button',{style:selectedPeriod==='YTD'?S.chipActive:S.chip,onClick:function(){setPeriod('YTD');}},'YTD'),
+        MONTHS.map(function(m){
+          var hasData = MONTHS.indexOf(m) <= CURRENT_MONTH_IDX;
+          return h('button',{key:m,style:Object.assign({},selectedPeriod===m?S.chipActive:S.chip,!hasData?{opacity:0.5}:{}),onClick:function(){setPeriod(m);}},m);
+        })
+      )
     ),
+
+    /* 4 KPI Cards */
+    h('div',{style:S.kpiRow},
+      h(KpiCard,{label:'Total Budget (Annual)',value:fmtFull(RENT_BUDGET_YR),sub:'$'+Math.round(rentBudgetMo).toLocaleString()+'/mo'}),
+      h(KpiCard,{label:isYTD?'YTD Budget':selectedPeriod+' Budget',value:fmtFull(Math.round(filtered.budget)),sub:isYTD?MONTHS_ELAPSED+' months':'Monthly budget'}),
+      h(KpiCard,{label:isYTD?'YTD Actual':selectedPeriod+' Actual',value:fmtFull(filtered.actual),sub:filtered.label,trend:fmtPct(fVariancePct)+' vs budget',trendUp:!overBudget}),
+      h(KpiCard,{label:'Variance',value:(fVariance>=0?'+':'')+fmtFull(fVariance),valueColor:statusColor,sub:statusLabel+' | '+pct(fUtilization)+' utilization',alert:overBudget?'red':null})
+    ),
+
+    /* Charts Row */
     h('div',{style:S.grid2},
+      /* Stacked bar — category breakdown per month */
       h('div',{style:S.section},
-        h('div',{style:S.sectionTitle},'Monthly Spend'),
+        h('div',{style:S.sectionTitle},'Monthly Spend by Category'+(isYTD?'':' — '+selectedPeriod)),
         h('div',{style:S.chartWrap},
           h(ResponsiveContainer,{width:'100%',height:'100%'},
-            h(BarChart,{data:chartData,margin:{top:20,right:20,bottom:5,left:10}},
+            h(ComposedChart,{data:stackData,margin:{top:20,right:20,bottom:5,left:10}},
               h(CartesianGrid,{strokeDasharray:'3 3',stroke:'#334155'}),
               h(XAxis,{dataKey:'month',stroke:'#64748B',fontSize:12}),
               h(YAxis,{stroke:'#64748B',fontSize:11,tickFormatter:function(v){return '$'+Math.round(v/1000)+'K';}}),
               h(Tooltip,{formatter:function(v){return fmtFull(v);},contentStyle:{background:'#1E293B',border:'1px solid #475569',borderRadius:8,color:'#E2E8F0'}}),
-              h(Bar,{dataKey:'amount',fill:'#06B6D4',radius:[4,4,0,0],name:'Spend'},
-                h(LabelList,{dataKey:'amount',position:'top',formatter:function(v){return fmt(v);},style:{fill:'#94A3B8',fontSize:11}})
-              )
+              h(Legend,null),
+              RENT_CATEGORIES.map(function(c){return h(Bar,{key:c.key,dataKey:c.name,stackId:'a',fill:c.color});}),
+              h(ReferenceLine,{y:Math.round(rentBudgetMo),stroke:'#F59E0B',strokeDasharray:'5 5',label:{value:'Budget $'+Math.round(rentBudgetMo/1000)+'K/mo',fill:'#F59E0B',fontSize:11,position:'right'}})
             )
           )
         )
       ),
+      /* Horizontal bar — category totals */
       h('div',{style:S.section},
-        h('div',{style:S.sectionTitle},'Breakdown by Category'),
-        h('div',{style:S.chartWrap},
+        h('div',{style:S.sectionTitle},'Category Breakdown ('+(isYTD?'YTD':selectedPeriod)+')'),
+        h('div',{style:{width:'100%',height:400}},
           h(ResponsiveContainer,{width:'100%',height:'100%'},
-            h(PieChart,null,
-              h(Pie,{data:pieData,dataKey:'value',nameKey:'name',cx:'50%',cy:'50%',outerRadius:110,label:function(e){return e.name+' '+fmt(e.value);}},
-                pieData.map(function(d,i){return h(Cell,{key:i,fill:d.color});})
-              ),
-              h(Tooltip,{formatter:function(v){return fmtFull(v);},contentStyle:{background:'#1E293B',border:'1px solid #475569',borderRadius:8,color:'#E2E8F0'}})
+            h(BarChart,{data:catBarData,margin:{top:10,right:30,bottom:5,left:10},layout:'vertical'},
+              h(CartesianGrid,{strokeDasharray:'3 3',stroke:'#334155'}),
+              h(XAxis,{type:'number',stroke:'#64748B',fontSize:11,tickFormatter:function(v){return '$'+Math.round(v/1000)+'K';}}),
+              h(YAxis,{type:'category',dataKey:'name',stroke:'#64748B',fontSize:10,width:170}),
+              h(Tooltip,{formatter:function(v){return fmtFull(v);},contentStyle:{background:'#1E293B',border:'1px solid #475569',borderRadius:8,color:'#E2E8F0'}}),
+              h(Bar,{dataKey:'amount',name:'Actual',radius:[0,4,4,0]},
+                catBarData.map(function(d,i){return h(Cell,{key:i,fill:d.color});})
+              )
             )
           )
         )
       )
     ),
+
+    /* GC Misposting Alert */
+    (function(){
+      var gcCats = RENT_CATEGORIES.filter(function(c){return c.key==='rent_gc';});
+      var gcTotal = gcCats.reduce(function(s,c){return s+catSum(c);},0);
+      if(gcTotal > 0) return h('div',{style:{background:'rgba(239,68,68,0.1)',border:'1px solid #EF4444',borderRadius:12,padding:'16px 20px',marginBottom:24}},
+        h('div',{style:{display:'flex',alignItems:'center',gap:8}},
+          h('span',{style:{fontSize:18}},'⚠'),
+          h('span',{style:{color:'#F87171',fontWeight:700,fontSize:14}},'GC Account Alert'),
+          h('span',{style:{color:'#94A3B8',fontSize:13,marginLeft:8}},'Gold Coast accounts are CLOSED. '+fmtFull(gcTotal)+' detected — likely a booking error. Please investigate.')
+        )
+      );
+      return null;
+    })(),
+
+    /* Category Summary Table */
     h('div',{style:S.section},
       h('div',{style:S.sectionTitle},'Category Summary'),
       h('div',{style:{overflowX:'auto'}},
         h('table',{style:S.table},
           h('thead',null,h('tr',null,
             h('th',{style:S.th},'Category'),
-            activeMonths.map(function(m){return h('th',{key:m,style:S.thR},m);}),
-            h('th',{style:S.thR},'YTD Total')
+            tableMonths.map(function(m){return h('th',{key:m,style:S.thR},m);}),
+            isYTD?h('th',{style:S.thR},'YTD Total'):null
           )),
           h('tbody',null,
             RENT_CATEGORIES.map(function(c,i){
               var total=catSum(c);
-              return h('tr',{key:i},
+              var isGC = c.key==='rent_gc';
+              var rowStyle = isGC && total>0 ? {background:'rgba(239,68,68,0.08)'} : {};
+              return h('tr',{key:i,style:rowStyle},
                 h('td',{style:Object.assign({},S.td,{fontWeight:600})},h('span',{style:{display:'inline-block',width:10,height:10,borderRadius:'50%',background:c.color,marginRight:8}}),c.name),
-                activeMonths.map(function(m){var v=catMonth(c,m);return h('td',{key:m,style:S.tdR},v>0?fmtDec(v):'-');}),
-                h('td',{style:Object.assign({},S.tdR,{fontWeight:700,color:'#F8FAFC'})},fmtDec(total))
+                tableMonths.map(function(m){var v=catMonth(c,m);return h('td',{key:m,style:S.tdR},v>0?fmtDec(v):'-');}),
+                isYTD?h('td',{style:Object.assign({},S.tdR,{fontWeight:700,color:isGC&&total>0?'#F87171':'#F8FAFC'})},fmtDec(total)):null
               );
             }),
             h('tr',{style:{borderTop:'2px solid #475569'}},
               h('td',{style:Object.assign({},S.td,{fontWeight:700})},'Total'),
-              activeMonths.map(function(m,i){return h('td',{key:m,style:Object.assign({},S.tdR,{fontWeight:700})},fmtDec(monthTotals[i]));}),
-              h('td',{style:Object.assign({},S.tdR,{fontWeight:800,color:'#F8FAFC',fontSize:15})},fmtDec(rentTotal))
+              tableMonths.map(function(m,i){return h('td',{key:m,style:Object.assign({},S.tdR,{fontWeight:700})},fmtDec(monthTotals[i]));}),
+              isYTD?h('td',{style:Object.assign({},S.tdR,{fontWeight:800,color:'#F8FAFC',fontSize:15})},fmtDec(filtered.actual)):null
             )
           )
         )
       )
     ),
+
+    /* Transaction Detail */
     h('div',{style:S.section},
       h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}},
-        h('div',{style:S.sectionTitle},'Transaction Detail'),
+        h('div',{style:S.sectionTitle},'Transaction Detail'+(isYTD?'':' — '+selectedPeriod)),
         h('div',{style:S.filterBar},
           h('span',{style:S.filterLabel},'Filter:'),
           h('button',{style:filterCat==='All'?S.chipActive:S.chip,onClick:function(){setFilterCat('All');}},'All'),
@@ -713,87 +795,148 @@ function RentTab(){
 
 /* ========== TAB 3: SALES & MARKETING ========== */
 function SalesMarketingTab(){
+  var ps = useState('YTD'); var selectedPeriod = ps[0]; var setPeriod = ps[1];
   var fs = useState('All'); var filterCat = fs[0]; var setFilterCat = fs[1];
   var activeMonths = MONTHS.slice(0,CURRENT_MONTH_IDX+1);
-  var smTotal = SM_CATEGORIES.reduce(function(s,c){return s+catSum(c);},0);
-  var monthTotals = activeMonths.map(function(m){return SM_CATEGORIES.reduce(function(s,c){return s+catMonth(c,m);},0);});
-  var filteredTxns = filterCat==='All'?SM_TXNS:SM_TXNS.filter(function(t){return t.cat===filterCat;});
-  var stackData = activeMonths.map(function(m){
-    var obj = {month:m};
+  var isYTD = selectedPeriod === 'YTD';
+  var smBudgetMo = SM_BUDGET_YR / 12;
+  var catNameMap = {};SM_CATEGORIES.forEach(function(c){catNameMap[c.key]=c.name;});
+
+  /* Compute filtered metrics */
+  var filtered = useMemo(function(){
+    if(isYTD){
+      var actual = SM_CATEGORIES.reduce(function(s,c){return s+catSum(c);},0);
+      var budget = smBudgetMo * MONTHS_ELAPSED;
+      return {actual:actual,budget:budget,label:MONTHS_ELAPSED+' months ('+MONTHS.slice(0,MONTHS_ELAPSED).join('-')+')'};
+    } else {
+      var mIdx = MONTHS.indexOf(selectedPeriod);
+      var hasData = mIdx <= CURRENT_MONTH_IDX;
+      var actual2 = hasData ? SM_CATEGORIES.reduce(function(s,c){return s+catMonth(c,selectedPeriod);},0) : 0;
+      return {actual:actual2,budget:smBudgetMo,label:selectedPeriod+' 2026'+(hasData?'':' (no data)'),hasData:hasData};
+    }
+  },[selectedPeriod]);
+
+  var fVariance = filtered.actual - filtered.budget;
+  var fVariancePct = filtered.budget>0?(fVariance/filtered.budget*100):0;
+  var overBudget = fVariance > 0;
+  var statusColor = overBudget ? '#EF4444' : '#10B981';
+  var statusLabel = overBudget ? 'OVER BUDGET' : 'UNDER BUDGET';
+  var fUtilization = filtered.budget>0?(filtered.actual/filtered.budget*100):0;
+
+  /* Filtered transactions */
+  var periodTxns = isYTD ? SM_TXNS : SM_TXNS.filter(function(t){var mi=txnMonthIdx(t);return mi===MONTHS.indexOf(selectedPeriod);});
+  var filteredTxns = filterCat==='All' ? periodTxns : periodTxns.filter(function(t){return t.cat===filterCat;});
+
+  /* Chart data — stacked bar by category per month */
+  var chartMonths = isYTD ? activeMonths : [selectedPeriod];
+  var stackData = chartMonths.map(function(m){
+    var obj = {month:m,budget:Math.round(smBudgetMo)};
     SM_CATEGORIES.forEach(function(c){obj[c.name] = catMonth(c,m);});
     return obj;
   });
-  var pieData = SM_CATEGORIES.map(function(c){return {name:c.name,value:catSum(c),color:c.color};});
-  var catNameMap = {};SM_CATEGORIES.forEach(function(c){catNameMap[c.key]=c.name;});
+
+  /* Category horizontal bar data */
+  var catBarData = SM_CATEGORIES.map(function(c){
+    var val = isYTD ? catSum(c) : catMonth(c,selectedPeriod);
+    return {name:c.name,amount:val,color:c.color};
+  });
+
+  /* Month totals for table */
+  var tableMonths = isYTD ? activeMonths : [selectedPeriod];
+  var monthTotals = tableMonths.map(function(m){return SM_CATEGORIES.reduce(function(s,c){return s+catMonth(c,m);},0);});
+
   return h('div',null,
-    h('div',{style:S.kpiRow},
-      h(KpiCard,{label:'YTD Total (2026)',value:fmtFull(smTotal),sub:activeMonths[0]+'-'+activeMonths[activeMonths.length-1]+' 2026'}),
-      activeMonths.map(function(m,i){
-        var txnCount = SM_TXNS.filter(function(t){return txnMonthIdx(t)===i;}).length;
-        var label = i===CURRENT_MONTH_IDX ? m+' (partial)' : m;
-        return h(KpiCard,{key:m,label:label,value:fmtFull(monthTotals[i]),sub:txnCount+' transactions'});
-      })
+    /* Filter Bar */
+    h('div',{style:{background:'#1E293B',borderRadius:12,padding:'16px 20px',border:'1px solid #334155',marginBottom:20}},
+      h('div',{style:S.filterBar},
+        h('span',{style:S.filterLabel},'Period:'),
+        h('button',{style:selectedPeriod==='YTD'?S.chipActive:S.chip,onClick:function(){setPeriod('YTD');}},'YTD'),
+        MONTHS.map(function(m){
+          var hasData = MONTHS.indexOf(m) <= CURRENT_MONTH_IDX;
+          return h('button',{key:m,style:Object.assign({},selectedPeriod===m?S.chipActive:S.chip,!hasData?{opacity:0.5}:{}),onClick:function(){setPeriod(m);}},m);
+        })
+      )
     ),
+
+    /* 4 KPI Cards */
+    h('div',{style:S.kpiRow},
+      h(KpiCard,{label:'Total Budget (Annual)',value:fmtFull(SM_BUDGET_YR),sub:'$'+Math.round(smBudgetMo).toLocaleString()+'/mo'}),
+      h(KpiCard,{label:isYTD?'YTD Budget':selectedPeriod+' Budget',value:fmtFull(Math.round(filtered.budget)),sub:isYTD?MONTHS_ELAPSED+' months':'Monthly budget'}),
+      h(KpiCard,{label:isYTD?'YTD Actual':selectedPeriod+' Actual',value:fmtFull(filtered.actual),sub:filtered.label,trend:fmtPct(fVariancePct)+' vs budget',trendUp:!overBudget}),
+      h(KpiCard,{label:'Variance',value:(fVariance>=0?'+':'')+fmtFull(fVariance),valueColor:statusColor,sub:statusLabel+' | '+pct(fUtilization)+' utilization',alert:overBudget?'red':null})
+    ),
+
+    /* Charts Row */
     h('div',{style:S.grid2},
+      /* Stacked bar — category breakdown per month */
       h('div',{style:S.section},
-        h('div',{style:S.sectionTitle},'Monthly Spend by Category'),
+        h('div',{style:S.sectionTitle},'Monthly Spend by Category'+(isYTD?'':' — '+selectedPeriod)),
         h('div',{style:S.chartWrap},
           h(ResponsiveContainer,{width:'100%',height:'100%'},
-            h(BarChart,{data:stackData,margin:{top:20,right:20,bottom:5,left:10}},
+            h(ComposedChart,{data:stackData,margin:{top:20,right:20,bottom:5,left:10}},
               h(CartesianGrid,{strokeDasharray:'3 3',stroke:'#334155'}),
               h(XAxis,{dataKey:'month',stroke:'#64748B',fontSize:12}),
               h(YAxis,{stroke:'#64748B',fontSize:11,tickFormatter:function(v){return '$'+Math.round(v/1000)+'K';}}),
               h(Tooltip,{formatter:function(v){return fmtFull(v);},contentStyle:{background:'#1E293B',border:'1px solid #475569',borderRadius:8,color:'#E2E8F0'}}),
               h(Legend,null),
-              SM_CATEGORIES.map(function(c){return h(Bar,{key:c.key,dataKey:c.name,stackId:'a',fill:c.color});})
+              SM_CATEGORIES.map(function(c){return h(Bar,{key:c.key,dataKey:c.name,stackId:'a',fill:c.color});}),
+              h(ReferenceLine,{y:Math.round(smBudgetMo),stroke:'#F59E0B',strokeDasharray:'5 5',label:{value:'Budget $'+Math.round(smBudgetMo/1000)+'K/mo',fill:'#F59E0B',fontSize:11,position:'right'}})
             )
           )
         )
       ),
+      /* Horizontal bar — category totals */
       h('div',{style:S.section},
-        h('div',{style:S.sectionTitle},'Breakdown by Category'),
-        h('div',{style:S.chartWrap},
+        h('div',{style:S.sectionTitle},'Category Breakdown ('+(isYTD?'YTD':selectedPeriod)+')'),
+        h('div',{style:{width:'100%',height:320}},
           h(ResponsiveContainer,{width:'100%',height:'100%'},
-            h(PieChart,null,
-              h(Pie,{data:pieData,dataKey:'value',nameKey:'name',cx:'50%',cy:'50%',outerRadius:110,label:function(e){return e.name+' '+fmt(e.value);}},
-                pieData.map(function(d,i){return h(Cell,{key:i,fill:d.color});})
-              ),
-              h(Tooltip,{formatter:function(v){return fmtFull(v);},contentStyle:{background:'#1E293B',border:'1px solid #475569',borderRadius:8,color:'#E2E8F0'}})
+            h(BarChart,{data:catBarData,margin:{top:10,right:30,bottom:5,left:10},layout:'vertical'},
+              h(CartesianGrid,{strokeDasharray:'3 3',stroke:'#334155'}),
+              h(XAxis,{type:'number',stroke:'#64748B',fontSize:11,tickFormatter:function(v){return '$'+Math.round(v/1000)+'K';}}),
+              h(YAxis,{type:'category',dataKey:'name',stroke:'#64748B',fontSize:11,width:160}),
+              h(Tooltip,{formatter:function(v){return fmtFull(v);},contentStyle:{background:'#1E293B',border:'1px solid #475569',borderRadius:8,color:'#E2E8F0'}}),
+              h(Bar,{dataKey:'amount',name:'Actual',radius:[0,4,4,0]},
+                catBarData.map(function(d,i){return h(Cell,{key:i,fill:d.color});})
+              )
             )
           )
         )
       )
     ),
+
+    /* Category Summary Table */
     h('div',{style:S.section},
       h('div',{style:S.sectionTitle},'Category Summary'),
       h('div',{style:{overflowX:'auto'}},
         h('table',{style:S.table},
           h('thead',null,h('tr',null,
             h('th',{style:S.th},'Category'),
-            activeMonths.map(function(m){return h('th',{key:m,style:S.thR},m);}),
-            h('th',{style:S.thR},'YTD Total')
+            tableMonths.map(function(m){return h('th',{key:m,style:S.thR},m);}),
+            isYTD?h('th',{style:S.thR},'YTD Total'):null
           )),
           h('tbody',null,
             SM_CATEGORIES.map(function(c,i){
               var total=catSum(c);
               return h('tr',{key:i},
                 h('td',{style:Object.assign({},S.td,{fontWeight:600})},h('span',{style:{display:'inline-block',width:10,height:10,borderRadius:'50%',background:c.color,marginRight:8}}),c.name),
-                activeMonths.map(function(m){var v=catMonth(c,m);return h('td',{key:m,style:S.tdR},v>0?fmtDec(v):'-');}),
-                h('td',{style:Object.assign({},S.tdR,{fontWeight:700,color:'#F8FAFC'})},fmtDec(total))
+                tableMonths.map(function(m){var v=catMonth(c,m);return h('td',{key:m,style:S.tdR},v>0?fmtDec(v):'-');}),
+                isYTD?h('td',{style:Object.assign({},S.tdR,{fontWeight:700,color:'#F8FAFC'})},fmtDec(total)):null
               );
             }),
             h('tr',{style:{borderTop:'2px solid #475569'}},
               h('td',{style:Object.assign({},S.td,{fontWeight:700})},'Total'),
-              activeMonths.map(function(m,i){return h('td',{key:m,style:Object.assign({},S.tdR,{fontWeight:700})},fmtDec(monthTotals[i]));}),
-              h('td',{style:Object.assign({},S.tdR,{fontWeight:800,color:'#F8FAFC',fontSize:15})},fmtDec(smTotal))
+              tableMonths.map(function(m,i){return h('td',{key:m,style:Object.assign({},S.tdR,{fontWeight:700})},fmtDec(monthTotals[i]));}),
+              isYTD?h('td',{style:Object.assign({},S.tdR,{fontWeight:800,color:'#F8FAFC',fontSize:15})},fmtDec(filtered.actual)):null
             )
           )
         )
       )
     ),
+
+    /* Transaction Detail */
     h('div',{style:S.section},
       h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}},
-        h('div',{style:S.sectionTitle},'Transaction Detail'),
+        h('div',{style:S.sectionTitle},'Transaction Detail'+(isYTD?'':' — '+selectedPeriod)),
         h('div',{style:S.filterBar},
           h('span',{style:S.filterLabel},'Filter:'),
           h('button',{style:filterCat==='All'?S.chipActive:S.chip,onClick:function(){setFilterCat('All');}},'All'),
@@ -824,7 +967,7 @@ function SalesMarketingTab(){
 }
 
 /* ========== MAIN APP ========== */
-var TABS = ['OPEX Overview','Rent & Outgoing','Sales & Marketing'];
+var TABS = ['OPEX','Rent & Outgoing','Sales & Marketing'];
 
 function App(){
   var state = useState(0);
