@@ -81,14 +81,14 @@ var SM_BUDGET_YR = 310069;
 // === DATA START ===
 var MONTHS_ELAPSED = 3;
 var CURRENT_MONTH_IDX = 3;
-var DATA_DATE = '2026-04-13';
+var DATA_DATE = '2026-04-28';
 
 var GROUPS = [
-  {key:'it',name:'IT Expenses',budgetMo:5094.03,budgetYr:63206.08,gstPct:10,color:'#6366F1',jan:5470,feb:4820,mar:4928,apr:2557},
-  {key:'insurance',name:'Insurance',budgetMo:1782.26,budgetYr:39850.12,gstPct:0,color:'#8B5CF6',jan:1669,feb:1669,mar:1669,apr:1700},
-  {key:'member',name:'Membership',budgetMo:935,budgetYr:11220,gstPct:10,color:'#EC4899',jan:0,feb:850,mar:0,apr:0},
-  {key:'print',name:'Printing & Materials',budgetMo:850,budgetYr:10200,gstPct:10,color:'#F59E0B',jan:728,feb:772,mar:704,apr:0},
-  {key:'finance',name:'Finance & Accounting',budgetMo:550,budgetYr:6600,gstPct:10,color:'#10B981',jan:1004,feb:529,mar:691,apr:193},
+  {key:'it',name:'IT Expenses',budgetMo:5094.03,budgetYr:63206.08,gstPct:10,color:'#6366F1',jan:5470,feb:4820,mar:4928,apr:10169},
+  {key:'insurance',name:'Insurance',budgetMo:1782.26,budgetYr:39850.12,gstPct:0,color:'#8B5CF6',jan:1669,feb:1669,mar:1669,apr:2166},
+  {key:'member',name:'Membership',budgetMo:935,budgetYr:11220,gstPct:10,color:'#EC4899',jan:0,feb:850,mar:0,apr:977},
+  {key:'print',name:'Printing & Materials',budgetMo:850,budgetYr:10200,gstPct:10,color:'#F59E0B',jan:728,feb:772,mar:704,apr:744},
+  {key:'finance',name:'Finance & Accounting',budgetMo:550,budgetYr:6600,gstPct:10,color:'#10B981',jan:1004,feb:529,mar:691,apr:194},
   {key:'daily',name:'Daily Operations',budgetMo:833.33,budgetYr:10000,gstPct:10,color:'#06B6D4',jan:0,feb:2024,mar:40,apr:3621},
   {key:'china',name:'China Office',budgetMo:9167,budgetYr:110000,gstPct:0,color:'#F87171',jan:4167,feb:0,mar:5000,apr:0},
   {key:'tax',name:'Payroll Tax',budgetMo:4000,budgetYr:48000,gstPct:0,color:'#A78BFA',jan:7175,feb:6842,mar:82108,apr:0}
@@ -98,9 +98,9 @@ var RENT_CATEGORIES = [
   {key:'rent_kp',name:'Rent - Kangaroo Point',color:'#8B5CF6',jan:0,feb:0,mar:0,apr:0},
   {key:'rent_syd',name:'Rent - Sydney',color:'#A78BFA',jan:0,feb:0,mar:0,apr:0},
   {key:'rent_gc',name:'Rent - Gold Coast',color:'#6B7280',jan:0,feb:0,mar:0,apr:0},
-  {key:'clean',name:'Cleaning & Gardening',color:'#10B981',jan:1085,feb:4039,mar:45,apr:0},
+  {key:'clean',name:'Cleaning & Gardening',color:'#10B981',jan:1085,feb:4039,mar:45,apr:1610},
   {key:'rates',name:'Council Rates',color:'#F59E0B',jan:0,feb:0,mar:3000,apr:0},
-  {key:'repair',name:'Repair & Maintenance',color:'#EF4444',jan:0,feb:1333,mar:0,apr:470},
+  {key:'repair',name:'Repair & Maintenance',color:'#EF4444',jan:0,feb:1333,mar:0,apr:1130},
   {key:'water',name:'Utilities - Water',color:'#3B82F6',jan:17795,feb:8106,mar:2750,apr:500},
   {key:'electricity',name:'Utilities - Electricity',color:'#FBBF24',jan:0,feb:0,mar:0,apr:0}
 ];
@@ -158,13 +158,17 @@ var RENT_TXNS = [
   {date:'2026-03-20',cat:'water',contact:'',amount:500},
   {date:'2026-03-23',cat:'water',contact:'',amount:1000},
   {date:'2026-04-07',cat:'water',contact:'',amount:500},
-  {date:'2026-04-09',cat:'repair',contact:'',amount:470}
+  {date:'2026-04-09',cat:'repair',contact:'',amount:470},
+  {date:'2026-04-23',cat:'clean',contact:'',amount:420},
+  {date:'2026-04-23',cat:'clean',contact:'',amount:630},
+  {date:'2026-04-23',cat:'clean',contact:'',amount:560},
+  {date:'2026-04-24',cat:'repair',contact:'',amount:660}
 ];
 
 var SM_CATEGORIES = [
-  {key:'mat',name:'Marketing Materials',color:'#8B5CF6',jan:160,feb:858,mar:0,apr:0},
+  {key:'mat',name:'Marketing Materials',color:'#8B5CF6',jan:160,feb:858,mar:554,apr:0},
   {key:'travel',name:'Travelling Expenses',color:'#06B6D4',jan:1551,feb:1029,mar:1549,apr:0},
-  {key:'bonus',name:'Staff Bonus',color:'#F59E0B',jan:2144,feb:2144,mar:6309,apr:0},
+  {key:'bonus',name:'Staff Bonus',color:'#F59E0B',jan:2144,feb:2144,mar:6309,apr:1946},
   {key:'partner',name:'Marketing & Partnership',color:'#EC4899',jan:3000,feb:455,mar:0,apr:0}
 ];
 
@@ -202,7 +206,10 @@ var SM_TXNS = [
   {date:'2026-03-19',cat:'travel',contact:'',amount:82},
   {date:'2026-03-20',cat:'travel',contact:'',amount:769},
   {date:'2026-02-27',cat:'mat',contact:'',amount:44},
-  {date:'2026-02-27',cat:'mat',contact:'',amount:44}
+  {date:'2026-02-27',cat:'mat',contact:'',amount:44},
+  {date:'2026-03-27',cat:'mat',contact:'',amount:554},
+  {date:'2026-04-16',cat:'bonus',contact:'',amount:1492},
+  {date:'2026-04-24',cat:'bonus',contact:'',amount:455}
 ];
 // === DATA END ===
 
